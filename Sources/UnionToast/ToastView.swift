@@ -55,19 +55,7 @@ struct ToastView<Content: View>: View {
                             }
                     }
                     .onChange(of: observedEdge) { _, new in
-                        guard let new else { return }
-                        if pendingEdge == new { pendingEdge = nil; return }
-                        guard userScrollActive else { return }
-
-                        let wantShowing = (new == .top)
-                        if toastManager.isShowing != wantShowing {
-                            suppressNextTempScroll = true
-                            if wantShowing {
-                                toastManager.show()
-                            } else {
-                                toastManager.dismiss()
-                            }
-                        }
+                        if pendingEdge == new { pendingEdge = nil }
                     }
                     .onChange(of: toastManager.isShowing) { _, new in
                         if suppressNextTempScroll { suppressNextTempScroll = false; return }
@@ -116,11 +104,21 @@ struct ToastView<Content: View>: View {
                 userScrollActive = true
                 isDragging = true
             }
-            .onEnded { value in
+            .onEnded { _ in
                 userScrollCooldown?.cancel()
                 userScrollCooldown = Task {
                     try? await Task.sleep(for: .milliseconds(250))
                     userScrollActive = false
+                    guard let edge = observedEdge else { return }
+                    let wantShowing = (edge == .top)
+                    if toastManager.isShowing != wantShowing {
+                        suppressNextTempScroll = true
+                        if wantShowing {
+                            toastManager.show()
+                        } else {
+                            toastManager.dismiss()
+                        }
+                    }
                 }
                 isDragging = false
             }
