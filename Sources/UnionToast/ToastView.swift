@@ -35,7 +35,7 @@ struct ToastView<Content: View>: View {
             VStack(spacing: 0) {
                 ScrollViewReader { scrollProxy in
                     ScrollView {
-                        Color.clear.opacity(0.1)
+                        Color.clear
                             .id("unit")
                             .frame(height: topPadding + toastManager.contentHeight)
                             .overlay(alignment: .top) {
@@ -72,6 +72,7 @@ struct ToastView<Content: View>: View {
                     .scrollTargetBehavior(.edges)
                     .frame(height: toastManager.contentHeight)
                 }
+                .disabled(!toastManager.isShowing)
 
                 Spacer()
             }
