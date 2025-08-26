@@ -8,38 +8,26 @@
 import SwiftUI
 
 public extension View {
+    /// Present a toast with custom SwiftUI content
+    /// 
+    /// - Parameters:
+    ///   - isPresented: A binding that controls whether the toast is presented
+    ///   - content: A SwiftUI view builder that creates the toast content
+    /// - Returns: A view with the toast modifier applied
+    /// 
+    /// Example:
+    /// ```swift
+    /// .toast(isPresented: $showToast) {
+    ///     Text("Hello, World!")
+    ///         .padding()
+    ///         .background(.blue)
+    ///         .cornerRadius(8)
+    /// }
+    /// ```
     func toast<Content: View>(
         isPresented: Binding<Bool>,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         modifier(ToastModifier(isPresented: isPresented, content: content))
-    }
-    
-    func toast(
-        isPresented: Binding<Bool>,
-        text: String
-    ) -> some View {
-        toast(isPresented: isPresented) {
-            Text(text)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundColor(.white)
-        }
-    }
-    
-    func toast(
-        isPresented: Binding<Bool>,
-        icon: Image,
-        text: String
-    ) -> some View {
-        toast(isPresented: isPresented) {
-            HStack(spacing: 8) {
-                icon
-                    .foregroundColor(.white)
-                
-                Text(text)
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundColor(.white)
-            }
-        }
     }
 }

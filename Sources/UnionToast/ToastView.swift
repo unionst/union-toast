@@ -40,7 +40,6 @@ struct ToastView<Content: View>: View {
                             .frame(height: topPadding + toastManager.contentHeight)
                             .overlay(alignment: .top) {
                                 toastContent(proxy: geometryProxy)
-                                    .background(.red)
                             }
                             .onGeometryChange(for: ScrollPosition?.self) { proxy in
                                 let f = proxy.frame(in: .scrollView)

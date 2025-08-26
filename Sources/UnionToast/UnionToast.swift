@@ -6,12 +6,12 @@
 //
 
 import SwiftUI
+import UIKit
 
-// The main public interface is the View extension which is automatically available
-// when importing UnionToast
+// The main public interface includes both SwiftUI and UIKit APIs
 
-// All public APIs are exported through their individual files:
-// - ToastContent, ToastState (from ToastData.swift)
-// - ToastManager (from ToastManager.swift) 
-// - ToastSceneDelegate (from ToastSceneDelegate.swift)
+// SwiftUI APIs:
 // - View.toast() modifiers (from View+Toast.swift)
+
+// UIKit APIs:
+// - UIViewController.presentToast() methods (from UIViewController+Toast.swift)
