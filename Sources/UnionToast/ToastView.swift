@@ -57,11 +57,15 @@ struct ToastView<Content: View>: View {
                     .onChange(of: observedEdge) { _, new in
                         guard let new else { return }
                         if pendingEdge == new { pendingEdge = nil; return }
-                        if userScrollActive {
-                            let want = new == .top
-                            if toastManager.isShowing != want {
-                                suppressNextTempScroll = true
+                        guard userScrollActive else { return }
+
+                        let wantShowing = (new == .top)
+                        if toastManager.isShowing != wantShowing {
+                            suppressNextTempScroll = true
+                            if wantShowing {
                                 toastManager.show()
+                            } else {
+                                toastManager.dismiss()
                             }
                         }
                     }
@@ -84,7 +88,6 @@ struct ToastView<Content: View>: View {
                 Spacer()
             }
         }
-//        .allowsHitTesting(toastManager.isShowing)
         .onChange(of: isDragging) { _, newValue in
             if newValue {
                 toastManager.pauseTimer()

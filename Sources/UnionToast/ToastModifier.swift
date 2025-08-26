@@ -40,7 +40,8 @@ struct ToastModifier<ToastContent: View>: ViewModifier {
 
         guard let windowScene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive }) else {
+            .first ?? UIApplication.shared.windows.first?.windowScene else {
+            print("Couldn't find window scene")
             return
         }
 

@@ -27,20 +27,13 @@ class ToastManager {
 
     func show() {
         cancelTask()
-
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            isShowing = true
-        }
-        
+        isShowing = true
         dismissTask = newDismissTask
     }
     
     func dismiss() {
         cancelTask()
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-            isShowing = false
-        }
+        isShowing = false
     }
 
     private func cancelTask() {
