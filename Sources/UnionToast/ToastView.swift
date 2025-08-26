@@ -12,6 +12,10 @@ struct ToastView<Content: View>: View {
     @Environment(ToastManager.self) private var toastManager
 
     @ViewBuilder var content: Content
+    
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content()
+    }
 
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
@@ -57,7 +61,7 @@ struct ToastView<Content: View>: View {
                     .onChange(of: observedEdge) { _, new in
                         if pendingEdge == new { pendingEdge = nil }
                     }
-                    .onChange(of: toastManager.isShowing) { _, new in
+                    .onChange(of: toastManager.isShowing, initial: true) { _, new in
                         if suppressNextTempScroll { suppressNextTempScroll = false; return }
                         pendingEdge = new ? .top : .bottom
                         withAnimation {
@@ -77,6 +81,7 @@ struct ToastView<Content: View>: View {
                 Spacer()
             }
         }
+
         .onChange(of: isDragging) { _, newValue in
             if newValue {
                 toastManager.pauseTimer()

@@ -20,8 +20,15 @@ class ToastSceneDelegate: NSObject {
     }
     
     func addOverlay<Content: View>(@ViewBuilder content: @escaping () -> Content) -> ToastManager {
-        guard let scene = windowScene, overlayWindow == nil else {
-            return toastManager ?? ToastManager()
+        guard let scene = windowScene else {
+            print("🍞 ToastSceneDelegate: No window scene available")
+            return ToastManager()
+        }
+        
+        // Remove existing overlay if present
+        if overlayWindow != nil {
+            print("🍞 ToastSceneDelegate: Removing existing overlay")
+            removeOverlay()
         }
 
         let manager = ToastManager()
@@ -34,10 +41,12 @@ class ToastSceneDelegate: NSObject {
         hostingController.view.backgroundColor = .clear
 
         let passthroughOverlayWindow = PassThroughWindow(windowScene: scene)
-        passthroughOverlayWindow.windowLevel = .statusBar
+        passthroughOverlayWindow.windowLevel = .alert + 1000
         passthroughOverlayWindow.rootViewController = hostingController
         passthroughOverlayWindow.isHidden = false
         passthroughOverlayWindow.isUserInteractionEnabled = true
+
+
 
         self.overlayWindow = passthroughOverlayWindow
         return manager
