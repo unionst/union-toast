@@ -12,6 +12,7 @@ struct ToastOverlayView<Content: View>: View {
 
     var body: some View {
         Color.clear
+            .allowsHitTesting(false)
             .ignoresSafeArea()
             .overlay(alignment: .top) {
                 ToastView {

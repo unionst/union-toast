@@ -2,7 +2,7 @@
 //  View+Toast.swift
 //  UnionToast
 //
-//  Created by Union on 1/27/25.
+//  Created by Ben Sage on 8/24/25.
 //
 
 import SwiftUI

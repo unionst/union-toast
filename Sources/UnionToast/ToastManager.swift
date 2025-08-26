@@ -11,8 +11,9 @@ import UnionHaptics
 
 @Observable @MainActor
 class ToastManager {
-    var isShowing = false
+    private(set) var isShowing = false
     private var dismissTask: Task<Void, Never>?
+    var contentHeight: CGFloat = 0
 
     private let dismissTime = 6.5
 
@@ -38,11 +39,6 @@ class ToastManager {
         cancelTask()
 
         withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-            isShowing = false
-        }
-        
-        Task {
-            try? await Task.sleep(for: .seconds(0.4))
             isShowing = false
         }
     }
