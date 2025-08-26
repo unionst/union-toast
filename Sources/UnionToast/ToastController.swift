@@ -17,7 +17,6 @@ public final class ToastController: NSObject {
 
     private override init() {
         super.init()
-        // Don't setup overlay immediately - do it lazily when needed
     }
 
     private func setupToastOverlay() {
@@ -36,6 +35,11 @@ public final class ToastController: NSObject {
     }
 
     public func show<Content: View>(@ViewBuilder content: @escaping () -> Content) {
+        // Ignore if a toast is already showing
+        if toastManager?.isShowing == true {
+            return
+        }
+        
         // Setup overlay if not already done
         if sceneDelegate == nil {
             setupToastOverlay()
@@ -66,6 +70,37 @@ public final class ToastController: NSObject {
         }
     }
 
+    public func forceShow<Content: View>(@ViewBuilder content: @escaping () -> Content) {
+        // Force show by temporarily bypassing the isShowing check
+        let wasShowing = toastManager?.isShowing
+        toastManager?.dismiss()
+        
+        // Setup overlay if not already done
+        if sceneDelegate == nil {
+            setupToastOverlay()
+        }
+        
+        guard let sceneDelegate = sceneDelegate else { 
+            return 
+        }
+        
+        // Small delay to ensure clean state, then create new overlay
+        Task {
+            try? await Task.sleep(for: .milliseconds(16))
+            await MainActor.run {
+                sceneDelegate.removeOverlay()
+                toastManager = sceneDelegate.addOverlay(content: content)
+                
+                Task {
+                    try? await Task.sleep(for: .milliseconds(16))
+                    await MainActor.run {
+                        toastManager?.show()
+                    }
+                }
+            }
+        }
+    }
+
     public func dismiss() {
         toastManager?.dismiss()
     }
@@ -80,6 +115,11 @@ public final class ToastController: NSObject {
 public extension ToastController {
     static func show<Content: View>(@ViewBuilder content: @escaping () -> Content) {
         shared.show(content: content)
+    }
+    
+    /// Force show a toast, dismissing any existing toast first
+    static func forceShow<Content: View>(@ViewBuilder content: @escaping () -> Content) {
+        shared.forceShow(content: content)
     }
     
     static func dismiss() {

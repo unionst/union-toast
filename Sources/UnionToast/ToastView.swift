@@ -31,6 +31,7 @@ struct ToastView<Content: View>: View {
     @State private var pendingEdge: ScrollPosition?
     @State private var userScrollActive = false
     @State private var userScrollCooldown: Task<Void, Never>?
+    @State private var hasInitializedPosition = false
 
     var body: some View {
         GeometryReader { geometryProxy in
@@ -61,7 +62,7 @@ struct ToastView<Content: View>: View {
                     .onChange(of: observedEdge) { _, new in
                         if pendingEdge == new { pendingEdge = nil }
                     }
-                    .onChange(of: toastManager.isShowing, initial: true) { _, new in
+                    .onChange(of: toastManager.isShowing) { _, new in
                         if suppressNextTempScroll { suppressNextTempScroll = false; return }
                         pendingEdge = new ? .top : .bottom
                         withAnimation {
@@ -75,6 +76,15 @@ struct ToastView<Content: View>: View {
                     .simultaneousGesture(dragGesture)
                     .scrollTargetBehavior(.edges)
                     .frame(height: toastManager.contentHeight)
+                    .onAppear {
+                        // Ensure we start at bottom position (hidden) only once
+                        if !hasInitializedPosition {
+                            hasInitializedPosition = true
+                            DispatchQueue.main.async {
+                                scrollProxy.scrollTo("unit", anchor: .bottom)
+                            }
+                        }
+                    }
                 }
                 .disabled(!toastManager.isShowing)
 
@@ -134,24 +144,6 @@ struct ToastView<Content: View>: View {
         if id == "bottom" {
             toastManager.dismiss()
         }
-    }
-}
-
-struct CustomScrollTargetBehavior: ScrollTargetBehavior {
-    func updateTarget(
-        _ target: inout ScrollTarget,
-        context: ScrollTargetBehaviorContext
-    ) {
-        guard context.axes.contains(.vertical) else { return }
-
-        let content = context.contentSize.height
-        let container = context.containerSize.height
-        let bottom = max(0, content - container)
-
-        let predicted = min(max(0, target.rect.minY), bottom)
-        let snapY = predicted <= bottom - predicted ? 0 : bottom
-
-        target.rect.origin.y = snapY
     }
 }
 
