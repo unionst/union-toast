@@ -8,89 +8,90 @@
 import UIKit
 import SwiftUI
 
-public extension UIViewController {
-    /// Present a toast view controller
+/// A toast controller that manages toast presentation, similar to UIAlertController
+public class UIToastController: UIViewController {
+    private let contentViewController: UIViewController
+    private let toastHostingController: ToastHostingController
+    
+    /// Create a toast controller with a view controller
     /// 
-    /// Works exactly like `present(_:animated:completion:)` for view controllers,
-    /// but displays the content as a toast notification at the top of the screen.
+    /// Similar to `UIAlertController(title:message:preferredStyle:)`
     /// 
-    /// - Parameters:
-    ///   - toastViewController: The view controller to present as toast content
-    ///   - animated: Whether to animate the presentation (default: true)
-    ///   - completion: Optional completion handler called after presentation
+    /// - Parameter viewController: The view controller to display as toast content
     /// 
     /// Example:
     /// ```swift
-    /// let myViewController = MyCustomViewController()
-    /// present(myViewController, animated: true) {
-    ///     print("Toast presented!")
-    /// }
+    /// let myVC = MyCustomViewController()
+    /// let toast = UIToastController(viewController: myVC)
+    /// present(toast, animated: true)
     /// ```
-    func presentToast(
-        _ toastViewController: UIViewController,
-        animated: Bool = true,
-        completion: (() -> Void)? = nil
-    ) {
-        let toastController = ToastHostingController(viewController: toastViewController)
-        presentToastController(toastController, animated: animated, completion: completion)
-    }
-    
-    /// Dismiss the currently presented toast
-    /// 
-    /// - Parameters:
-    ///   - animated: Whether to animate the dismissal (default: true)
-    ///   - completion: Optional completion handler called after dismissal
-    func dismissToast(animated: Bool = true, completion: (() -> Void)? = nil) {
-        guard let toastController = findToastController() else {
-            completion?()
-            return
-        }
+    public init(viewController: UIViewController) {
+        self.contentViewController = viewController
+        self.toastHostingController = ToastHostingController(viewController: viewController)
+        super.init(nibName: nil, bundle: nil)
         
-        toastController.dismissToast(animated: animated, completion: completion)
+        // Make background transparent
+        view.backgroundColor = .clear
+        modalPresentationStyle = .overFullScreen
+        modalTransitionStyle = .crossDissolve
     }
     
-    // MARK: - Private Methods
-    
-    private func presentToastController(
-        _ toastController: ToastHostingController,
-        animated: Bool,
-        completion: (() -> Void)?
-    ) {
-        // Dismiss any existing toast first
-        if let existingToast = findToastController() {
-            existingToast.dismissToast(animated: false) { [weak self] in
-                self?.addToastController(toastController, animated: animated, completion: completion)
-            }
-        } else {
-            addToastController(toastController, animated: animated, completion: completion)
-        }
+    /// Create a toast controller with SwiftUI content
+    /// 
+    /// - Parameter content: SwiftUI view builder for the toast content
+    /// 
+    /// Example:
+    /// ```swift
+    /// let toast = UIToastController {
+    ///     Text("Hello, World!")
+    ///         .padding()
+    ///         .background(.blue)
+    ///         .cornerRadius(8)
+    /// }
+    /// present(toast, animated: true)
+    /// ```
+    public convenience init<Content: View>(@ViewBuilder content: @escaping () -> Content) {
+        let hostingController = UIHostingController(rootView: content())
+        hostingController.view.backgroundColor = .clear
+        self.init(viewController: hostingController)
     }
     
-    private func addToastController(
-        _ toastController: ToastHostingController,
-        animated: Bool,
-        completion: (() -> Void)?
-    ) {
-        // Add as child view controller
-        addChild(toastController)
-        view.addSubview(toastController.view)
-        toastController.didMove(toParent: self)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    public override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        // Add the toast hosting controller as a child
+        addChild(toastHostingController)
+        view.addSubview(toastHostingController.view)
+        toastHostingController.didMove(toParent: self)
         
         // Setup constraints
-        toastController.view.translatesAutoresizingMaskIntoConstraints = false
+        toastHostingController.view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            toastController.view.topAnchor.constraint(equalTo: view.topAnchor),
-            toastController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            toastController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            toastController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            toastHostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
+            toastHostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            toastHostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            toastHostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-        
-        // Present the toast
-        toastController.presentToast(animated: animated, completion: completion)
     }
     
-    private func findToastController() -> (any ToastControllerProtocol)? {
-        return children.first { $0 is any ToastControllerProtocol } as? (any ToastControllerProtocol)
+    public override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        toastHostingController.presentToast(animated: animated)
+    }
+    
+    /// Dismiss the toast
+    /// 
+    /// - Parameters:
+    ///   - animated: Whether to animate the dismissal
+    ///   - completion: Optional completion handler
+    public func dismiss(animated: Bool = true, completion: (() -> Void)? = nil) {
+        toastHostingController.dismissToast(animated: animated) { [weak self] in
+            self?.dismiss(animated: false, completion: completion)
+        }
     }
 }
 

@@ -73,38 +73,52 @@ struct ContentView: View {
 
 ### UIKit
 
-#### Present Toast with View Controller
+#### Present Toast with View Controller (UIAlertController-style)
 
 ```swift
 import UnionToast
 
 class ViewController: UIViewController {
     @IBAction func showToastTapped(_ sender: UIButton) {
-        let toastVC = MyCustomViewController()
-        presentToast(toastVC, animated: true) {
-            print("Toast presented!")
-        }
+        let myViewController = MyCustomViewController()
+        let toast = UIToastController(viewController: myViewController)
+        present(toast, animated: true)
     }
     
-    @IBAction func dismissToastTapped(_ sender: UIButton) {
-        dismissToast(animated: true) {
-            print("Toast dismissed!")
+    @IBAction func showSwiftUIToastTapped(_ sender: UIButton) {
+        let toast = UIToastController {
+            Text("Hello from SwiftUI!")
+                .padding()
+                .background(.purple)
+                .cornerRadius(8)
+                .foregroundColor(.white)
         }
+        present(toast, animated: true)
     }
 }
 ```
 
-#### Using UIHostingController for SwiftUI Content
+#### Programmatic Dismissal
 
 ```swift
-let swiftUIView = Text("Hello from SwiftUI!")
-    .padding()
-    .background(.purple)
-    .cornerRadius(8)
-    .foregroundColor(.white)
+// Keep a reference to dismiss programmatically
+var currentToast: UIToastController?
 
-let hostingController = UIHostingController(rootView: swiftUIView)
-presentToast(hostingController, animated: true)
+func showToast() {
+    currentToast = UIToastController {
+        Text("Tap to dismiss")
+            .padding()
+            .background(.blue)
+            .cornerRadius(8)
+    }
+    present(currentToast!, animated: true)
+}
+
+func dismissToast() {
+    currentToast?.dismiss(animated: true) {
+        print("Toast dismissed!")
+    }
+}
 ```
 
 ## Behavior
@@ -123,8 +137,10 @@ The toast system automatically configures overlay windows when first used. Toast
 - `View.toast(isPresented:content:)` - Present a toast with custom SwiftUI content
 
 ### UIKit  
-- `UIViewController.presentToast(_:animated:completion:)` - Present a toast with a view controller
-- `UIViewController.dismissToast(animated:completion:)` - Dismiss the current toast
+- `UIToastController(viewController:)` - Create a toast controller with a UIViewController
+- `UIToastController(content:)` - Create a toast controller with SwiftUI content
+- `UIToastController.dismiss(animated:completion:)` - Dismiss the toast
+- Present using standard `present(_:animated:completion:)` method
 
 ## Requirements
 
