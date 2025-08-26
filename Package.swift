@@ -14,14 +14,12 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(path: "../union-haptics"),
-        .package(path: "../union-scroll")
+        .package(url: "https://github.com/unionst/union-scroll.git", from: "1.0.0")
     ],
     targets: [
         .target(
             name: "UnionToast",
             dependencies: [
-                .product(name: "UnionHaptics", package: "union-haptics"),
                 .product(name: "UnionScroll", package: "union-scroll")
             ]
         )

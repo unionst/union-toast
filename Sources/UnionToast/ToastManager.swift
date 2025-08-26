@@ -7,7 +7,6 @@
 
 import SwiftUI
 import Observation
-import UnionHaptics
 
 @Observable @MainActor
 class ToastManager {

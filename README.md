@@ -1,16 +1,16 @@
 # UnionToast
 
-A toast notification system for both SwiftUI and UIKit that provides seamless presentation across your app.
+A toast notification system for SwiftUI that provides seamless presentation across your app.
 
 ## Features
 
-- 🎯 **Simple APIs**: SwiftUI `.toast(isPresented:)` modifier and UIKit `presentToast(_:)` method
+- 🎯 **Simple API**: SwiftUI `.toast(isPresented:)` modifier
 - 🪟 **Overlay Windows**: Uses passthrough overlay windows for proper presentation
-- 🎨 **Fully Customizable**: Support for any SwiftUI content or UIKit view controllers
+- 🎨 **Fully Customizable**: Support for any SwiftUI content
 - ⏰ **Auto-dismiss**: Built-in timing with pause/resume on interaction
 - 📱 **Gesture Support**: Swipe up to dismiss, hold to pause timer
-- 🎵 **Haptic Feedback**: Built-in haptic feedback on toast presentation
-- 🔄 **Cross-Platform**: Works with both SwiftUI and UIKit
+- ✨ **Smooth Animations**: Beautiful transitions and animations
+- 🚀 **Pure SwiftUI**: Built entirely with SwiftUI
 
 ## Installation
 
@@ -22,9 +22,7 @@ Add this package to your project using Swift Package Manager:
 
 ## Usage
 
-### SwiftUI
-
-#### Basic Custom Toast
+### Basic Custom Toast
 
 ```swift
 import UnionToast
@@ -49,7 +47,7 @@ struct ContentView: View {
 }
 ```
 
-#### Advanced Custom Toast
+### Advanced Custom Toast
 
 ```swift
 .toast(isPresented: $showToast) {
@@ -71,56 +69,6 @@ struct ContentView: View {
 }
 ```
 
-### UIKit
-
-#### Present Toast with View Controller (UIAlertController-style)
-
-```swift
-import UnionToast
-
-class ViewController: UIViewController {
-    @IBAction func showToastTapped(_ sender: UIButton) {
-        let myViewController = MyCustomViewController()
-        let toast = UIToastController(viewController: myViewController)
-        present(toast, animated: true)
-    }
-    
-    @IBAction func showSwiftUIToastTapped(_ sender: UIButton) {
-        let toast = UIToastController {
-            Text("Hello from SwiftUI!")
-                .padding()
-                .background(.purple)
-                .cornerRadius(8)
-                .foregroundColor(.white)
-        }
-        present(toast, animated: true)
-    }
-}
-```
-
-#### Programmatic Dismissal
-
-```swift
-// Keep a reference to dismiss programmatically
-var currentToast: UIToastController?
-
-func showToast() {
-    currentToast = UIToastController {
-        Text("Tap to dismiss")
-            .padding()
-            .background(.blue)
-            .cornerRadius(8)
-    }
-    present(currentToast!, animated: true)
-}
-
-func dismissToast() {
-    currentToast?.dismissToast(animated: true) {
-        print("Toast dismissed!")
-    }
-}
-```
-
 ## Behavior
 
 The toast system automatically configures overlay windows when first used. Toasts appear at the top of the screen and:
@@ -128,19 +76,12 @@ The toast system automatically configures overlay windows when first used. Toast
 - **Auto-dismiss after ~6.5 seconds**
 - **Can be dismissed by swiping up**
 - **Timer pauses when user interacts with the toast**
-- **Include haptic feedback on presentation**
+- **Smooth animations and transitions**
 - **Only one toast is shown at a time** (new toasts replace existing ones)
 
 ## Public API
 
-### SwiftUI
 - `View.toast(isPresented:content:)` - Present a toast with custom SwiftUI content
-
-### UIKit  
-- `UIToastController(viewController:)` - Create a toast controller with a UIViewController
-- `UIToastController(content:)` - Create a toast controller with SwiftUI content
-- `UIToastController.dismissToast(animated:completion:)` - Dismiss the toast
-- Present using standard `present(_:animated:completion:)` method
 
 ## Requirements
 
@@ -149,7 +90,6 @@ The toast system automatically configures overlay windows when first used. Toast
 
 ## Dependencies
 
-- [UnionHaptics](https://github.com/unionst/union-haptics) - For haptic feedback
 - [UnionScroll](https://github.com/unionst/union-scroll) - For scroll behavior
 
 
