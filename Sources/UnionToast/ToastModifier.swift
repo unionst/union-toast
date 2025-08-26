@@ -38,21 +38,46 @@ struct ToastModifier<ToastContent: View>: ViewModifier {
         guard !hasConfiguredOverlay else { return }
         hasConfiguredOverlay = true
 
-        guard let windowScene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first ?? UIApplication.shared.windows.first?.windowScene else {
-            print("Couldn't find window scene")
+        // Try multiple methods to find the active window scene
+        var windowScene: UIWindowScene?
+
+        // Method 1: Find the active window scene from connected scenes
+        windowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+
+        // Method 2: If no active scene, try any foreground scene
+        if windowScene == nil {
+            windowScene = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first { $0.activationState == .foregroundInactive }
+        }
+
+        // Method 3: Fallback to any window scene
+        if windowScene == nil {
+            windowScene = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first
+        }
+
+        // Method 4: Try to get from key window (deprecated but might work)
+        if windowScene == nil {
+            windowScene = UIApplication.shared.windows.first?.windowScene
+        }
+
+        guard let scene = windowScene else {
+            print("🍞 ToastModifier: Couldn't find window scene")
             return
         }
 
         let delegate = ToastSceneDelegate()
-        delegate.configure(with: windowScene)
+        delegate.configure(with: scene)
         let manager = delegate.addOverlay(content: content)
 
         sceneDelegate = delegate
         toastManager = manager
     }
-
+    
     private func showToast() {
         toastManager?.show()
     }
