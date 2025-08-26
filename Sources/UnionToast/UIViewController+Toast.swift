@@ -80,7 +80,7 @@ public class UIToastController: UIViewController {
     
     public override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        toastHostingController.presentToast(animated: animated)
+        toastHostingController.presentToast(animated: animated, completion: nil)
     }
     
     /// Dismiss the toast
@@ -88,7 +88,7 @@ public class UIToastController: UIViewController {
     /// - Parameters:
     ///   - animated: Whether to animate the dismissal
     ///   - completion: Optional completion handler
-    public func dismiss(animated: Bool = true, completion: (() -> Void)? = nil) {
+    public func dismissToast(animated: Bool = true, completion: (() -> Void)? = nil) {
         toastHostingController.dismissToast(animated: animated) { [weak self] in
             self?.dismiss(animated: false, completion: completion)
         }
@@ -151,12 +151,12 @@ class ToastHostingController: UIHostingController<ToastWrapper>, ToastController
         
         let delay = animated ? 0.3 : 0.0
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            self?.removeFromParent()
+            self?.removeFromParentVC()
             completion?()
         }
     }
     
-    private func removeFromParent() {
+    private func removeFromParentVC() {
         willMove(toParent: nil)
         view.removeFromSuperview()
         removeFromParent()

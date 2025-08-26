@@ -115,7 +115,7 @@ func showToast() {
 }
 
 func dismissToast() {
-    currentToast?.dismiss(animated: true) {
+    currentToast?.dismissToast(animated: true) {
         print("Toast dismissed!")
     }
 }
@@ -139,7 +139,7 @@ The toast system automatically configures overlay windows when first used. Toast
 ### UIKit  
 - `UIToastController(viewController:)` - Create a toast controller with a UIViewController
 - `UIToastController(content:)` - Create a toast controller with SwiftUI content
-- `UIToastController.dismiss(animated:completion:)` - Dismiss the toast
+- `UIToastController.dismissToast(animated:completion:)` - Dismiss the toast
 - Present using standard `present(_:animated:completion:)` method
 
 ## Requirements
