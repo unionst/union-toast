@@ -14,8 +14,8 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/unionst/union-haptics", from: "1.0.0"),
-        .package(url: "https://github.com/unionst/union-scroll", from: "1.0.0")
+        .package(path: "../union-haptics"),
+        .package(path: "../union-scroll")
     ],
     targets: [
         .target(
