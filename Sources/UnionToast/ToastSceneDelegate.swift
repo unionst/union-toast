@@ -14,6 +14,7 @@ class ToastSceneDelegate: NSObject {
     weak var windowScene: UIWindowScene?
     var overlayWindow: PassThroughWindow?
     var toastManager: ToastManager?
+    var hostingController: UIViewController?
     
     func configure(with windowScene: UIWindowScene) {
         self.windowScene = windowScene
@@ -34,27 +35,34 @@ class ToastSceneDelegate: NSObject {
         let manager = ToastManager()
         self.toastManager = manager
         
-        let hostingController = UIHostingController(
-            rootView: ToastOverlayView { content() }
-                .environment(manager)
+        let hosting = UIHostingController(
+            rootView: ToastOverlayView(manager: manager, content: content)
         )
-        hostingController.view.backgroundColor = .clear
+        hosting.view.backgroundColor = .clear
 
         let passthroughOverlayWindow = PassThroughWindow(windowScene: scene)
         passthroughOverlayWindow.windowLevel = .alert + 1000
-        passthroughOverlayWindow.rootViewController = hostingController
+        passthroughOverlayWindow.rootViewController = hosting
         passthroughOverlayWindow.isHidden = false
         passthroughOverlayWindow.isUserInteractionEnabled = true
 
 
 
         self.overlayWindow = passthroughOverlayWindow
+        self.hostingController = hosting
         return manager
+    }
+    
+    func updateOverlay<Content: View>(@ViewBuilder content: @escaping () -> Content) {
+        guard let manager = toastManager, let hosting = hostingController as? UIHostingController<ToastOverlayView<Content>> else { return }
+        
+        hosting.rootView = ToastOverlayView(manager: manager, content: content)
     }
     
     func removeOverlay() {
         overlayWindow?.isHidden = true
         overlayWindow = nil
         toastManager = nil
+        hostingController = nil
     }
 }

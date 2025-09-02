@@ -28,6 +28,6 @@ public extension View {
         isPresented: Binding<Bool>,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        modifier(ToastModifier(isPresented: isPresented, content: content))
+        modifier(ToastModifier(isPresented: isPresented, toastContent: content))
     }
 }

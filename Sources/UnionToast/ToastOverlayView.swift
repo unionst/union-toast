@@ -8,16 +8,16 @@
 import SwiftUI
 
 struct ToastOverlayView<Content: View>: View {
-    @ViewBuilder var content: Content
+    let manager: ToastManager
+    let content: () -> Content
 
     var body: some View {
         Color.clear
             .allowsHitTesting(false)
             .ignoresSafeArea()
             .overlay(alignment: .top) {
-                ToastView {
-                    content
-                }
+                ToastView(content: content)
             }
+            .environment(manager)
     }
 }

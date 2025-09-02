@@ -11,11 +11,7 @@ import UnionScroll
 struct ToastView<Content: View>: View {
     @Environment(ToastManager.self) private var toastManager
 
-    @ViewBuilder var content: Content
-    
-    init(@ViewBuilder content: @escaping () -> Content) {
-        self.content = content()
-    }
+    let content: () -> Content
 
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
@@ -105,7 +101,7 @@ struct ToastView<Content: View>: View {
 
     @ViewBuilder
     func toastContent(proxy outerProxy: GeometryProxy) -> some View {
-        content
+        content()
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { value in
