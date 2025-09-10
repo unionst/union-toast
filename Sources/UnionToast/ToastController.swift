@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import UnionHaptics
 
 @MainActor
 public final class ToastController: NSObject {
@@ -115,6 +116,11 @@ public final class ToastController: NSObject {
 public extension ToastController {
     static func show<Content: View>(@ViewBuilder content: @escaping () -> Content) {
         shared.show(content: content)
+    }
+    
+    static func showWithHaptic<Content: View>(@ViewBuilder content: @escaping () -> Content, haptic: SensoryFeedback = .success) {
+        Haptics.play(haptic)
+        Self.show(content: content)
     }
     
     /// Force show a toast, dismissing any existing toast first
