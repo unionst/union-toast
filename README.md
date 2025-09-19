@@ -29,7 +29,7 @@ import UnionToast
 
 struct ContentView: View {
     @State private var showToast = false
-    
+
     var body: some View {
         VStack {
             Button("Show Toast") {
@@ -44,6 +44,19 @@ struct ContentView: View {
                 .foregroundColor(.white)
         }
     }
+}
+```
+
+### Custom Dismiss Delay
+
+```swift
+// Custom 3 second dismiss delay
+.toast(isPresented: $showToast, dismissDelay: .seconds(3)) {
+    Text("Quick toast!")
+        .padding()
+        .background(.orange)
+        .cornerRadius(8)
+        .foregroundColor(.white)
 }
 ```
 
@@ -73,7 +86,7 @@ struct ContentView: View {
 
 The toast system automatically configures overlay windows when first used. Toasts appear at the top of the screen and:
 
-- **Auto-dismiss after ~6.5 seconds**
+- **Auto-dismiss after 6.5 seconds** (configurable with `dismissDelay` parameter)
 - **Can be dismissed by swiping up**
 - **Timer pauses when user interacts with the toast**
 - **Smooth animations and transitions**
@@ -81,7 +94,14 @@ The toast system automatically configures overlay windows when first used. Toast
 
 ## Public API
 
-- `View.toast(isPresented:content:)` - Present a toast with custom SwiftUI content
+### View Modifier
+- `View.toast(isPresented:dismissDelay:content:)` - Present a toast with custom SwiftUI content and optional dismiss delay
+
+### ToastController Static Methods
+- `ToastController.show(dismissDelay:content:)` - Show a toast programmatically
+- `ToastController.showWithHaptic(dismissDelay:haptic:content:)` - Show a toast with haptic feedback
+- `ToastController.forceShow(dismissDelay:content:)` - Force show a toast, dismissing any existing one
+- `ToastController.dismiss()` - Manually dismiss the current toast
 
 ## Requirements
 
