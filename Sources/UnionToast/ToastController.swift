@@ -118,7 +118,7 @@ public extension ToastController {
         shared.show(dismissDelay: dismissDelay, content: content)
     }
 
-    static func showWithHaptic<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content, haptic: SensoryFeedback = .success) {
+    static func showWithHaptic<Content: View>(dismissDelay: Duration? = nil, haptic: SensoryFeedback = .success, @ViewBuilder content: @escaping () -> Content) {
         Haptics.play(haptic)
         Self.show(dismissDelay: dismissDelay, content: content)
     }
