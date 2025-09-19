@@ -14,11 +14,15 @@ class ToastManager {
     private var dismissTask: Task<Void, Never>?
     var contentHeight: CGFloat = 0
 
-    private let dismissTime = 6.5
+    private let dismissDelay: Duration
+
+    init(dismissDelay: Duration = .seconds(6.5)) {
+        self.dismissDelay = dismissDelay
+    }
 
     var newDismissTask: Task<Void, Never>? {
         Task {
-            try? await Task.sleep(for: .seconds(dismissTime))
+            try? await Task.sleep(for: dismissDelay)
             guard !Task.isCancelled else { return }
             await dismiss()
         }

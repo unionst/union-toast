@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ToastModifier<ToastContent: View>: ViewModifier {
     @Binding var isPresented: Bool
+    let dismissDelay: Duration?
     let toastContent: () -> ToastContent
 
     @State private var hasConfiguredOverlay = false
@@ -73,7 +74,7 @@ struct ToastModifier<ToastContent: View>: ViewModifier {
 
         let delegate = ToastSceneDelegate()
         delegate.configure(with: scene)
-        let manager = delegate.addOverlay(content: toastContent)
+        let manager = delegate.addOverlay(dismissDelay: dismissDelay, content: toastContent)
 
         sceneDelegate = delegate
         toastManager = manager
