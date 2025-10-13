@@ -28,6 +28,7 @@ struct ToastView<Content: View>: View {
     @State private var userScrollActive = false
     @State private var userScrollCooldown: Task<Void, Never>?
     @State private var hasInitializedPosition = false
+    @State private var animationProgress: CGFloat = 0
 
     var body: some View {
         GeometryReader { geometryProxy in
@@ -58,11 +59,35 @@ struct ToastView<Content: View>: View {
                     .onChange(of: observedEdge) { _, new in
                         if pendingEdge == new { pendingEdge = nil }
                     }
-                    .onChange(of: toastManager.isShowing) { _, new in
-                        if suppressNextTempScroll { suppressNextTempScroll = false; return }
-                        pendingEdge = new ? .top : .bottom
-                        withAnimation {
-                            scrollProxy.scrollTo("unit", anchor: new ? .top : .bottom)
+                    .onChange(of: toastManager.isShowing) {
+                        if suppressNextTempScroll {
+                            suppressNextTempScroll = false
+                            return
+                        }
+
+                        if toastManager.isShowing {
+                            var animation: Animation = .default
+                            
+                            if #available(iOS 26.0, *) {
+                                // Key formulas:
+                                // - Natural frequency: sqrt(stiffness/mass)
+                                // - Damping ratio: damping / (2sqrt(stiffness × mass))
+                                //
+                                // To speed up by factor N while maintaining same damping ratio:
+                                // - Multiply stiffness by N^2
+                                // - Multiply damping by N
+                                animation = .interpolatingSpring(mass: 1.0, stiffness: 98, damping: 13, initialVelocity: 5)
+                            }
+
+                            withAnimation(animation) {
+                                scrollProxy.scrollTo("unit", anchor: .top)
+                                animationProgress = 1
+                            }
+                        } else {
+                            withAnimation {
+                                scrollProxy.scrollTo("unit", anchor: .bottom)
+                                animationProgress = 0
+                            }
                         }
                     }
                     .defaultScrollAnchor(.bottom)
@@ -102,6 +127,24 @@ struct ToastView<Content: View>: View {
     @ViewBuilder
     func toastContent(proxy outerProxy: GeometryProxy) -> some View {
         content()
+            .blur(radius: (1 - animationProgress) * 10)
+            // The spring overshoots, so animationProgress exceeds 1.0 creating a "stretch" effect
+            .scaleEffect(
+                // Horizontal scale: 0.6 + (progress × 0.4)
+                // - At progress = 0.0: x = 0.6
+                // - At progress = 1.0: x = 1.0
+                // - At progress = 1.1 (overshoot): x = 1.04
+                x: 0.6 + (animationProgress * 0.4),
+
+                // Vertical scale: 1.4 - (progress × 0.4)
+                // - At progress = 0.0: y = 1.4
+                // - At progress = 1.0: y = 1.0
+                // - At progress = 1.1 (overshoot): y = 0.96
+                y: max(0.2, 1.4 - (animationProgress * 0.4)),
+                anchor: .top
+            )
+            .opacity(animationProgress)
+        
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { value in
