@@ -26,7 +26,6 @@ class ToastSceneDelegate: NSObject {
             return dismissDelay != nil ? ToastManager(dismissDelay: dismissDelay!) : ToastManager()
         }
 
-        // Remove existing overlay if present
         if overlayWindow != nil {
             print("🍞 ToastSceneDelegate: Removing existing overlay")
             removeOverlay()
@@ -46,16 +45,17 @@ class ToastSceneDelegate: NSObject {
         passthroughOverlayWindow.isHidden = false
         passthroughOverlayWindow.isUserInteractionEnabled = true
 
-
-
         self.overlayWindow = passthroughOverlayWindow
         self.hostingController = hosting
         return manager
     }
     
     func updateOverlay<Content: View>(@ViewBuilder content: @escaping () -> Content) {
-        guard let manager = toastManager, let hosting = hostingController as? UIHostingController<ToastOverlayView<Content>> else { return }
-        
+        guard let manager = toastManager,
+              let hosting = hostingController as? UIHostingController<ToastOverlayView<Content>> else {
+            return
+        }
+
         hosting.rootView = ToastOverlayView(manager: manager, content: content)
     }
     

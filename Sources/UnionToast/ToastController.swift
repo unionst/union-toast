@@ -36,12 +36,10 @@ public final class ToastController: NSObject {
     }
 
     public func show<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
-        // Ignore if a toast is already showing
         if toastManager?.isShowing == true {
             return
         }
 
-        // Setup overlay if not already done
         if sceneDelegate == nil {
             setupToastOverlay()
         }
@@ -50,19 +48,16 @@ public final class ToastController: NSObject {
             return
         }
 
-        // Dismiss any existing toast first
         toastManager?.dismiss()
 
-        // Small delay to ensure clean state, then create new overlay
         Task {
-            try? await Task.sleep(for: .milliseconds(16)) // One frame at 60fps
+            try? await Task.sleep(for: .milliseconds(16))
             await MainActor.run {
                 sceneDelegate.removeOverlay()
                 toastManager = sceneDelegate.addOverlay(dismissDelay: dismissDelay, content: content)
 
-                // Minimal delay for view setup, then show
                 Task {
-                    try? await Task.sleep(for: .milliseconds(16)) // One more frame
+                    try? await Task.sleep(for: .milliseconds(16))
                     await MainActor.run {
                         toastManager?.show()
                     }
