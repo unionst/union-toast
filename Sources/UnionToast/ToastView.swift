@@ -55,19 +55,27 @@ struct ToastView<Content: View>: View {
                                 guard observedEdge != pos else { return }
                                 observedEdge = pos
                             }
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                let f = proxy.frame(in: .scrollView)
+                                let c = proxy.bounds(of: .scrollView) ?? .zero
+                                guard !c.isEmpty else { return 0 }
+                                
+                                let scrollableHeight = toastManager.contentHeight
+                                guard scrollableHeight > 0 else { return 0 }
+                                
+                                let offset = c.minY - f.minY
+                                let progress = 1.0 - (offset / scrollableHeight)
+                                return max(0, min(1, progress))
+                            } action: { progress in
+                                if isDragging || userScrollActive {
+                                    animationProgress = progress
+                                }
+                            }
                     }
                     .onChange(of: observedEdge) { _, new in
                         if pendingEdge == new { pendingEdge = nil }
                     }
                     .onChange(of: toastManager.isShowing) {
-                        if suppressNextTempScroll {
-                            suppressNextTempScroll = false
-                            if !toastManager.isShowing {
-                                animationProgress = 0
-                            }
-                            return
-                        }
-
                         var animation: Animation = .default
                         
                         if #available(iOS 26.0, *) {
@@ -77,6 +85,11 @@ struct ToastView<Content: View>: View {
                                 damping: 13,
                                 initialVelocity: 5
                             )
+                        }
+                        
+                        if suppressNextTempScroll {
+                            suppressNextTempScroll = false
+                            return
                         }
                         
                         if toastManager.isShowing {
@@ -133,7 +146,6 @@ struct ToastView<Content: View>: View {
                 y: max(0.2, 1.4 - (animationProgress * 0.4)),
                 anchor: .top
             )
-            .opacity(animationProgress)
         
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
