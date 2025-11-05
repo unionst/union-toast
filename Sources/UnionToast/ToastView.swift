@@ -76,9 +76,18 @@ struct ToastView<Content: View>: View {
                                     let currentProgress = 1.0 + (minY / contentHeight)
                                     let clampedProgress = max(0, min(1, currentProgress))
                                     
+                                    if clampedProgress > dismissStartScrollPos {
+                                        userScrollActive = false
+                                        animationProgress = 1
+                                        if toastManager.isShowing {
+                                            toastManager.resumeTimer()
+                                        }
+                                        return
+                                    }
+                                    
                                     if dismissStartScrollPos > 0 {
                                         let ratio = clampedProgress / dismissStartScrollPos
-                                        animationProgress = ratio * dismissStartAnimProgress
+                                        animationProgress = min(1.0, ratio * dismissStartAnimProgress)
                                     } else {
                                         animationProgress = clampedProgress
                                     }
@@ -96,6 +105,11 @@ struct ToastView<Content: View>: View {
                             } else if new == .top {
                                 willDismissResetTask?.cancel()
                                 willDismiss = false
+                                animationProgress = 1
+                                userScrollActive = false
+                                if toastManager.isShowing {
+                                    toastManager.resumeTimer()
+                                }
                             }
                         }
                     }
@@ -191,11 +205,6 @@ struct ToastView<Content: View>: View {
             } else {
                 dismissStartScrollPos = currentScrollPos
                 dismissStartAnimProgress = animationProgress
-                
-                if toastManager.isShowing && !willDismiss {
-                    toastManager.resumeTimer()
-                    animationProgress = 1
-                }
             }
         }
     }
@@ -228,6 +237,12 @@ struct ToastView<Content: View>: View {
                     try? await Task.sleep(for: .milliseconds(250))
                     userScrollActive = false
                     willDismiss = false
+                    
+                    if toastManager.isShowing {
+                        animationProgress = 1
+                        toastManager.resumeTimer()
+                    }
+                    
                     guard let edge = observedEdge else {
                         return
                     }
