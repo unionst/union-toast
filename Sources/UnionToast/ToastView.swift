@@ -238,15 +238,24 @@ struct ToastView<Content: View>: View {
 
     @ViewBuilder
     func toastContent(proxy outerProxy: GeometryProxy) -> some View {
-        content()
-            .blur(radius: (1 - animationProgress) * 10)
-            .scaleEffect(0.5 + (animationProgress * 0.5))
-            .opacity(0.5 + (animationProgress * 0.5))
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.height
-            } action: { value in
-                toastManager.contentHeight = value
-            }
+        if #available(iOS 26.0, *) {
+            content()
+                .blur(radius: (1 - animationProgress) * 10)
+                .scaleEffect(0.5 + (animationProgress * 0.5))
+                .opacity(0.5 + (animationProgress * 0.5))
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { value in
+                    toastManager.contentHeight = value
+                }
+        } else {
+            content()
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { value in
+                    toastManager.contentHeight = value
+                }
+        }
     }
 
     var simultaneousDragGesture: SimultaneousDragGesture {
