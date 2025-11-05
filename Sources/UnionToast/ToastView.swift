@@ -21,6 +21,11 @@ struct ToastView<Content: View>: View {
         case top
         case bottom
     }
+    
+    struct ScrollData: Equatable {
+        let progress: CGFloat
+        let offset: CGFloat
+    }
 
     @State private var suppressNextTempScroll = false
     @State private var observedEdge: ScrollPosition?
@@ -29,6 +34,11 @@ struct ToastView<Content: View>: View {
     @State private var userScrollCooldown: Task<Void, Never>?
     @State private var hasInitializedPosition = false
     @State private var animationProgress: CGFloat = 0
+    @State private var willDismiss = false
+    @State private var currentScrollPos: CGFloat = 1.0
+    @State private var dismissStartScrollPos: CGFloat = 1.0
+    @State private var dismissStartAnimProgress: CGFloat = 1.0
+    @State private var willDismissResetTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geometryProxy in
@@ -55,25 +65,51 @@ struct ToastView<Content: View>: View {
                                 guard observedEdge != pos else { return }
                                 observedEdge = pos
                             }
-                            .onGeometryChange(for: CGFloat.self) { proxy in
+                            .onGeometryChange(for: ScrollData.self) { proxy in
                                 let f = proxy.frame(in: .scrollView)
                                 let c = proxy.bounds(of: .scrollView) ?? .zero
-                                guard !c.isEmpty else { return 0 }
+                                guard !c.isEmpty else { return ScrollData(progress: 0, offset: 0) }
                                 
                                 let scrollableHeight = toastManager.contentHeight
-                                guard scrollableHeight > 0 else { return 0 }
+                                guard scrollableHeight > 0 else { return ScrollData(progress: 0, offset: 0) }
                                 
                                 let offset = c.minY - f.minY
-                                let progress = 1.0 - (offset / scrollableHeight)
-                                return max(0, min(1, progress))
-                            } action: { progress in
-                                if isDragging || userScrollActive {
-                                    animationProgress = progress
-                                }
+                                let scrollProgress = 1.0 - (offset / scrollableHeight)
+                                let clampedScroll = max(0, min(1, scrollProgress))
+                                
+                                return ScrollData(progress: clampedScroll, offset: offset)
+                            } action: { data in
+                                currentScrollPos = data.progress
                             }
                     }
-                    .onChange(of: observedEdge) { _, new in
+                    .onChange(of: observedEdge) { old, new in
                         if pendingEdge == new { pendingEdge = nil }
+                        
+                        if !isDragging && userScrollActive {
+                            if new == .bottom {
+                                willDismissResetTask?.cancel()
+                                willDismiss = true
+                                
+                                let fastAnimation: Animation
+                                if #available(iOS 26.0, *) {
+                                    fastAnimation = .interpolatingSpring(
+                                        mass: 0.5,
+                                        stiffness: 300,
+                                        damping: 20,
+                                        initialVelocity: 10
+                                    )
+                                } else {
+                                    fastAnimation = .spring(duration: 0.2)
+                                }
+                                
+                                withAnimation(fastAnimation) {
+                                    animationProgress = 0
+                                }
+                            } else if new == .top {
+                                willDismissResetTask?.cancel()
+                                willDismiss = false
+                            }
+                        }
                     }
                     .onChange(of: toastManager.isShowing) {
                         var animation: Animation = .default
@@ -89,10 +125,16 @@ struct ToastView<Content: View>: View {
                         
                         if suppressNextTempScroll {
                             suppressNextTempScroll = false
+                            if !toastManager.isShowing {
+                                animationProgress = 0
+                            }
                             return
                         }
                         
                         if toastManager.isShowing {
+                            willDismissResetTask?.cancel()
+                            willDismiss = false
+                            animationProgress = 0
                             withAnimation(animation) {
                                 scrollProxy.scrollTo("unit", anchor: .top)
                                 animationProgress = 1
@@ -101,6 +143,12 @@ struct ToastView<Content: View>: View {
                             withAnimation(animation) {
                                 scrollProxy.scrollTo("unit", anchor: .bottom)
                                 animationProgress = 0
+                            }
+                            willDismissResetTask?.cancel()
+                            willDismissResetTask = Task {
+                                try? await Task.sleep(for: .seconds(1))
+                                willDismiss = false
+                                willDismissResetTask = nil
                             }
                         }
                     }
@@ -129,9 +177,16 @@ struct ToastView<Content: View>: View {
         .onChange(of: isDragging) { _, newValue in
             if newValue {
                 toastManager.pauseTimer()
+                if observedEdge == .top {
+                    animationProgress = 1
+                }
             } else {
-                if toastManager.isShowing {
+                dismissStartScrollPos = currentScrollPos
+                dismissStartAnimProgress = animationProgress
+                
+                if toastManager.isShowing && !willDismiss {
                     toastManager.resumeTimer()
+                    animationProgress = 1
                 }
             }
         }
@@ -161,12 +216,26 @@ struct ToastView<Content: View>: View {
                 userScrollActive = true
                 isDragging = true
             }
-            .onEnded { _ in
+            .onEnded { value in
+                isDragging = false
+                
+                Task {
+                    try? await Task.sleep(for: .milliseconds(16))
+                    if observedEdge == .bottom {
+                        willDismiss = true
+                    } else if observedEdge == .top {
+                        willDismiss = false
+                    }
+                }
+                
                 userScrollCooldown?.cancel()
                 userScrollCooldown = Task {
                     try? await Task.sleep(for: .milliseconds(250))
                     userScrollActive = false
-                    guard let edge = observedEdge else { return }
+                    guard let edge = observedEdge else {
+                        willDismiss = false
+                        return
+                    }
                     let wantShowing = (edge == .top)
                     if toastManager.isShowing != wantShowing {
                         suppressNextTempScroll = true
@@ -177,7 +246,6 @@ struct ToastView<Content: View>: View {
                         }
                     }
                 }
-                isDragging = false
             }
     }
 
