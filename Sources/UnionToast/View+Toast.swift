@@ -8,6 +8,7 @@
 import SwiftUI
 
 public extension View {
+
     /// Present a toast with custom SwiftUI content
     ///
     /// - Parameters:
