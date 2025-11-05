@@ -159,7 +159,7 @@ struct ToastView<Content: View>: View {
                     .scrollPosition(id: $visibleID)
                     .scrollIndicators(.hidden)
                     .scrollClipDisabled()
-                    .applyDragGesture(drag: .init(), simultaneousDrag: dragGesture)
+                    .applyDragGesture(drag: simultaneousDragGesture, simultaneousDrag: dragGesture)
                     .scrollTargetBehavior(.edges)
                     .frame(height: toastManager.contentHeight)
                     .onScrollGeometryChange(for: CGFloat.self) { geometry in
@@ -226,38 +226,56 @@ struct ToastView<Content: View>: View {
     var dragGesture: some Gesture {
         DragGesture()
             .onChanged { _ in
-                userScrollCooldown?.cancel()
-                userScrollActive = true
-                isDragging = true
+                handleDragChanged()
             }
             .onEnded { value in
-                isDragging = false
-                
-                userScrollCooldown?.cancel()
-                userScrollCooldown = Task {
-                    try? await Task.sleep(for: .milliseconds(250))
-                    userScrollActive = false
-                    willDismiss = false
-                    
-                    if toastManager.isShowing {
-                        animationProgress = 1
-                        toastManager.resumeTimer()
-                    }
-                    
-                    guard let edge = observedEdge else {
-                        return
-                    }
-                    let wantShowing = (edge == .top)
-                    if toastManager.isShowing != wantShowing {
-                        suppressNextTempScroll = true
-                        if wantShowing {
-                            toastManager.show()
-                        } else {
-                            toastManager.dismiss()
-                        }
-                    }
+                handleDragEnd()
+            }
+    }
+    
+    var simultaneousDragGesture: SimultaneousDragGesture {
+        SimultaneousDragGesture()
+            .onChanged { _ in
+                handleDragChanged()
+            }
+            .onEnded { _ in
+                handleDragEnd()
+            }
+    }
+    
+    func handleDragChanged() {
+        userScrollCooldown?.cancel()
+        userScrollActive = true
+        isDragging = true
+    }
+    
+    func handleDragEnd() {
+        isDragging = false
+        
+        userScrollCooldown?.cancel()
+        userScrollCooldown = Task {
+            try? await Task.sleep(for: .milliseconds(250))
+            userScrollActive = false
+            willDismiss = false
+            
+            if toastManager.isShowing {
+                animationProgress = 1
+                toastManager.resumeTimer()
+            }
+            
+            guard let edge = observedEdge else {
+                return
+            }
+            let wantShowing = (edge == .top)
+            if toastManager.isShowing != wantShowing {
+                suppressNextTempScroll = true
+                if wantShowing {
+                    toastManager.show()
+                } else {
+                    toastManager.dismiss()
                 }
             }
+        }
     }
 
     func checkID(_ id: String?) {
