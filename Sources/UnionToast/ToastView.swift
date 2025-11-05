@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UnionScroll
+import UnionGestures
 
 struct ToastView<Content: View>: View {
     @Environment(ToastManager.self) private var toastManager
@@ -158,7 +159,7 @@ struct ToastView<Content: View>: View {
                     .scrollPosition(id: $visibleID)
                     .scrollIndicators(.hidden)
                     .scrollClipDisabled()
-                    .simultaneousGesture(dragGesture)
+                    .applyDragGesture(drag: .init(), simultaneousDrag: dragGesture)
                     .scrollTargetBehavior(.edges)
                     .frame(height: toastManager.contentHeight)
                     .onScrollGeometryChange(for: CGFloat.self) { geometry in
