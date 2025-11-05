@@ -200,6 +200,8 @@ struct ToastView<Content: View>: View {
                 toastManager.pauseTimer()
                 if observedEdge == .top {
                     animationProgress = 1
+                    dismissStartScrollPos = 1.0
+                    dismissStartAnimProgress = 1.0
                 }
             } else {
                 dismissStartScrollPos = currentScrollPos
