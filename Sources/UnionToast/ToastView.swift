@@ -65,6 +65,26 @@ struct ToastView<Content: View>: View {
                                 guard observedEdge != pos else { return }
                                 observedEdge = pos
                             }
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                let f = proxy.frame(in: .scrollView)
+                                return f.minY
+                            } action: { minY in
+                                if !isDragging && userScrollActive {
+                                    let contentHeight = toastManager.contentHeight
+                                    guard contentHeight > 0 else { return }
+                                    
+                                    let currentProgress = 1.0 + (minY / contentHeight)
+                                    let clampedProgress = max(0, min(1, currentProgress))
+                                    
+                                    if dismissStartScrollPos > 0 {
+                                        let ratio = clampedProgress / dismissStartScrollPos
+                                        animationProgress = ratio * dismissStartAnimProgress
+                                    } else {
+                                        animationProgress = clampedProgress
+                                    }
+                                    
+                                }
+                            }
                     }
                     .onChange(of: observedEdge) { old, new in
                         if pendingEdge == new { pendingEdge = nil }
@@ -162,7 +182,6 @@ struct ToastView<Content: View>: View {
                 Spacer()
             }
         }
-
         .onChange(of: isDragging) { _, newValue in
             if newValue {
                 toastManager.pauseTimer()
@@ -184,13 +203,9 @@ struct ToastView<Content: View>: View {
     @ViewBuilder
     func toastContent(proxy outerProxy: GeometryProxy) -> some View {
         content()
-            .blur(radius: (1 - animationProgress) * 10)
-            .scaleEffect(
-                x: 0.6 + (animationProgress * 0.4),
-                y: max(0.2, 1.4 - (animationProgress * 0.4)),
-                anchor: .top
-            )
-        
+            .blur(radius: (1 - animationProgress) * 5)
+            .scaleEffect(0.5 + (animationProgress * 0.5))
+            .opacity(pow(animationProgress, 0.4))
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { value in
@@ -207,14 +222,6 @@ struct ToastView<Content: View>: View {
             }
             .onEnded { value in
                 isDragging = false
-                
-                let threshold: CGFloat = 0.5
-                if currentScrollPos < threshold {
-                    willDismiss = true
-                } else {
-                    willDismiss = false
-                    animationProgress = 1
-                }
                 
                 userScrollCooldown?.cancel()
                 userScrollCooldown = Task {
