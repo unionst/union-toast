@@ -41,6 +41,7 @@ struct ToastView<Content: View>: View {
     @State private var dismissStartAnimProgress: CGFloat = 1.0
     @State private var willDismissResetTask: Task<Void, Never>?
     @State private var lastTrackedProgress: CGFloat = 0
+    @State private var dragStartedFromBottom = false
 
     var body: some View {
         GeometryReader { geometryProxy in
@@ -159,6 +160,24 @@ struct ToastView<Content: View>: View {
                         if !isDragging && userScrollActive && dismissStartScrollPos < 1.0 {
                             // Use clamped value for position tracking
                             let clampedScrollProgress = max(0, min(1, scrollProgress))
+                            
+                            // Check if we're moving towards visible (showing) rather than dismissing
+                            let isShowingToast = clampedScrollProgress > dismissStartScrollPos
+                            
+                            if isShowingToast {
+                                // Reset to visible state - we're showing, not dismissing
+                                print("📈 Showing toast: \(String(format: "%.3f", clampedScrollProgress)) > start: \(String(format: "%.3f", dismissStartScrollPos))")
+                                userScrollActive = false
+                                animationProgress = 1
+                                dismissStartScrollPos = 1.0
+                                dismissStartAnimProgress = 1.0
+                                lastTrackedProgress = 0
+                                if toastManager.isShowing {
+                                    toastManager.resumeTimer()
+                                }
+                                return
+                            }
+                            
                             print("🌊 Scroll offset: \(String(format: "%.1f", newOffset)), ScrollPos: \(String(format: "%.3f", clampedScrollProgress))")
                             
                             if clampedScrollProgress > lastTrackedProgress && lastTrackedProgress > 0 {
@@ -208,6 +227,8 @@ struct ToastView<Content: View>: View {
             if newValue {
                 print("▶️ Drag START - currentAnim: \(animationProgress)")
                 toastManager.pauseTimer()
+                dragStartedFromBottom = (observedEdge == .bottom)
+                
                 if observedEdge == .top {
                     animationProgress = 1
                     dismissStartScrollPos = 1.0
@@ -218,8 +239,12 @@ struct ToastView<Content: View>: View {
                     dismissStartAnimProgress = 1.0
                 }
             } else {
-                // Only capture dismiss start if we're not already at bottom
-                if observedEdge != .bottom {
+                // Only capture dismiss start if:
+                // 1. We're not at bottom edge
+                // 2. We started from a visible position (not from bottom)
+                let startedFromBottom = animationProgress == 0 || (observedEdge == .bottom && currentScrollPos < 0.1)
+                
+                if !startedFromBottom && observedEdge != .bottom {
                     dismissStartScrollPos = currentScrollPos
                     dismissStartAnimProgress = animationProgress
                     lastTrackedProgress = currentScrollPos
@@ -278,7 +303,7 @@ struct ToastView<Content: View>: View {
             userScrollActive = false
             willDismiss = false
             
-            if toastManager.isShowing && observedEdge != .bottom {
+            if toastManager.isShowing && observedEdge != .bottom && dismissStartScrollPos >= 1.0 {
                 animationProgress = 1
                 dismissStartScrollPos = 1.0
                 dismissStartAnimProgress = 1.0
