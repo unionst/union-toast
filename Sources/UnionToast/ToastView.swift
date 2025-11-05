@@ -284,7 +284,7 @@ struct ToastView<Content: View>: View {
             userScrollActive = false
             willDismiss = false
             
-            if toastManager.isShowing && observedEdge != .bottom && dismissStartScrollPos >= 1.0 {
+            if toastManager.isShowing && observedEdge != .bottom {
                 animationProgress = 1
                 dismissStartScrollPos = 1.0
                 dismissStartAnimProgress = 1.0

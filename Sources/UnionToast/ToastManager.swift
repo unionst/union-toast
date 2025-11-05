@@ -12,6 +12,7 @@ import Observation
 class ToastManager {
     private(set) var isShowing = false
     private var dismissTask: Task<Void, Never>?
+    private var dismissTaskID = UUID()
     var contentHeight: CGFloat = 0
 
     private let dismissDelay: Duration
@@ -21,9 +22,16 @@ class ToastManager {
     }
 
     var newDismissTask: Task<Void, Never>? {
-        Task {
+        let taskID = UUID()
+        dismissTaskID = taskID
+        return Task {
             try? await Task.sleep(for: dismissDelay)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                return
+            }
+            guard taskID == self.dismissTaskID else {
+                return
+            }
             await dismiss()
         }
     }
@@ -46,6 +54,7 @@ class ToastManager {
 
     func pauseTimer() {
         dismissTask?.cancel()
+        dismissTask = nil
     }
     
     func resumeTimer() {
