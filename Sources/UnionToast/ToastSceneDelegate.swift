@@ -40,10 +40,20 @@ class ToastSceneDelegate: NSObject {
         hosting.view.backgroundColor = .clear
 
         let passthroughOverlayWindow = PassThroughWindow(windowScene: scene)
-        passthroughOverlayWindow.windowLevel = .alert + 1000
+        passthroughOverlayWindow.windowLevel = .alert + 10
         passthroughOverlayWindow.rootViewController = hosting
         passthroughOverlayWindow.isHidden = false
         passthroughOverlayWindow.isUserInteractionEnabled = true
+        
+        // Force layout pass to pre-render the view hierarchy
+        hosting.view.setNeedsLayout()
+        hosting.view.layoutIfNeeded()
+        
+        // Also force display to ensure any CALayers are rendered
+        hosting.view.setNeedsDisplay()
+        let layer = hosting.view.layer.presentation() ?? hosting.view.layer
+        layer.setNeedsDisplay()
+        layer.displayIfNeeded()
 
         self.overlayWindow = passthroughOverlayWindow
         self.hostingController = hosting
