@@ -77,15 +77,6 @@ struct ToastView<Content: View>: View {
                                     let currentProgress = 1.0 + (minY / contentHeight)
                                     let clampedProgress = max(0, min(1, currentProgress))
                                     
-                                    if clampedProgress > dismissStartScrollPos {
-                                        userScrollActive = false
-                                        animationProgress = 1
-                                        if toastManager.isShowing {
-                                            toastManager.resumeTimer()
-                                        }
-                                        return
-                                    }
-                                    
                                     if dismissStartScrollPos > 0 {
                                         let ratio = clampedProgress / dismissStartScrollPos
                                         animationProgress = min(1.0, ratio * dismissStartAnimProgress)
@@ -103,6 +94,8 @@ struct ToastView<Content: View>: View {
                             if new == .bottom {
                                 willDismissResetTask?.cancel()
                                 willDismiss = true
+                                dismissStartScrollPos = currentScrollPos
+                                dismissStartAnimProgress = animationProgress
                             } else if new == .top {
                                 willDismissResetTask?.cancel()
                                 willDismiss = false
@@ -213,9 +206,9 @@ struct ToastView<Content: View>: View {
     @ViewBuilder
     func toastContent(proxy outerProxy: GeometryProxy) -> some View {
         content()
-            .blur(radius: (1 - animationProgress) * 5)
+            .blur(radius: (1 - animationProgress) * 10)
             .scaleEffect(0.5 + (animationProgress * 0.5))
-            .opacity(pow(animationProgress, 0.4))
+            .opacity(0.5 + (animationProgress * 0.5))
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { value in
@@ -223,22 +216,22 @@ struct ToastView<Content: View>: View {
             }
     }
 
-    var dragGesture: some Gesture {
-        DragGesture()
-            .onChanged { _ in
-                handleDragChanged()
-            }
-            .onEnded { value in
-                handleDragEnd()
-            }
-    }
-    
     var simultaneousDragGesture: SimultaneousDragGesture {
         SimultaneousDragGesture()
             .onChanged { _ in
                 handleDragChanged()
             }
             .onEnded { _ in
+                handleDragEnd()
+            }
+    }
+    
+    var dragGesture: some Gesture {
+        DragGesture()
+            .onChanged { _ in
+                handleDragChanged()
+            }
+            .onEnded { value in
                 handleDragEnd()
             }
     }
