@@ -74,11 +74,9 @@ struct ToastView<Content: View>: View {
                         
                         if !isDragging && userScrollActive {
                             if new == .bottom {
-                                print("📍 Edge → BOTTOM")
                                 willDismissResetTask?.cancel()
                                 willDismiss = true
                             } else if new == .top {
-                                print("📍 Edge → TOP - resetting to 1.0")
                                 willDismissResetTask?.cancel()
                                 willDismiss = false
                                 animationProgress = 1
@@ -165,8 +163,6 @@ struct ToastView<Content: View>: View {
                             let isShowingToast = clampedScrollProgress > dismissStartScrollPos
                             
                             if isShowingToast {
-                                // Reset to visible state - we're showing, not dismissing
-                                print("📈 Showing toast: \(String(format: "%.3f", clampedScrollProgress)) > start: \(String(format: "%.3f", dismissStartScrollPos))")
                                 userScrollActive = false
                                 animationProgress = 1
                                 dismissStartScrollPos = 1.0
@@ -178,10 +174,7 @@ struct ToastView<Content: View>: View {
                                 return
                             }
                             
-                            print("🌊 Scroll offset: \(String(format: "%.1f", newOffset)), ScrollPos: \(String(format: "%.3f", clampedScrollProgress))")
-                            
                             if clampedScrollProgress > lastTrackedProgress && lastTrackedProgress > 0 {
-                                print("🔙 Scroll bouncing back: \(String(format: "%.3f", clampedScrollProgress)) > \(String(format: "%.3f", lastTrackedProgress))")
                                 userScrollActive = false
                                 animationProgress = 1
                                 dismissStartScrollPos = 1.0
@@ -196,16 +189,11 @@ struct ToastView<Content: View>: View {
                             lastTrackedProgress = clampedScrollProgress
                             
                             if dismissStartScrollPos > 0 {
-                                // Use unclamped scrollProgress for smooth animation through overshoot
                                 let distanceTraveled = dismissStartScrollPos - scrollProgress
-                                let maxDistance = dismissStartScrollPos  // From release to fully dismissed (0)
+                                let maxDistance = dismissStartScrollPos
                                 let progressRatio = distanceTraveled / maxDistance
-                                // Invert: 1.0 at release, 0.0 when fully dismissed
-                                // Allow negative values during overshoot for natural bounce
                                 animationProgress = (1.0 - progressRatio) * dismissStartAnimProgress
-                                animationProgress = max(0, animationProgress)  // But don't go below 0
-                                let scale = 0.5 + (animationProgress * 0.5)
-                                print("🌊 Anim: \(String(format: "%.3f", animationProgress)), Scale: \(String(format: "%.3f", scale))")
+                                animationProgress = max(0, animationProgress)
                             }
                         }
                     }
@@ -225,7 +213,6 @@ struct ToastView<Content: View>: View {
         }
         .onChange(of: isDragging) { _, newValue in
             if newValue {
-                print("▶️ Drag START - currentAnim: \(animationProgress)")
                 toastManager.pauseTimer()
                 dragStartedFromBottom = (observedEdge == .bottom)
                 
@@ -234,14 +221,10 @@ struct ToastView<Content: View>: View {
                     dismissStartScrollPos = 1.0
                     dismissStartAnimProgress = 1.0
                 } else if observedEdge == .bottom {
-                    // Don't track dismiss animation when starting from bottom
                     dismissStartScrollPos = 1.0
                     dismissStartAnimProgress = 1.0
                 }
             } else {
-                // Only capture dismiss start if:
-                // 1. We're not at bottom edge
-                // 2. We started from a visible position (not from bottom)
                 let startedFromBottom = animationProgress == 0 || (observedEdge == .bottom && currentScrollPos < 0.1)
                 
                 if !startedFromBottom && observedEdge != .bottom {
@@ -249,7 +232,6 @@ struct ToastView<Content: View>: View {
                     dismissStartAnimProgress = animationProgress
                     lastTrackedProgress = currentScrollPos
                 }
-                print("⏸️ Drag END - captured: scrollPos=\(currentScrollPos), animProgress=\(animationProgress)")
             }
         }
     }
@@ -299,7 +281,6 @@ struct ToastView<Content: View>: View {
         userScrollCooldown?.cancel()
         userScrollCooldown = Task {
             try? await Task.sleep(for: .milliseconds(250))
-            print("⏰ Cooldown - edge: \(String(describing: observedEdge)), animProgress before: \(animationProgress)")
             userScrollActive = false
             willDismiss = false
             
@@ -308,7 +289,6 @@ struct ToastView<Content: View>: View {
                 dismissStartScrollPos = 1.0
                 dismissStartAnimProgress = 1.0
                 toastManager.resumeTimer()
-                print("⏰ Reset all to 1.0")
             }
             
             guard let edge = observedEdge else {
