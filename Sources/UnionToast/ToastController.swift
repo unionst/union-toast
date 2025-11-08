@@ -52,6 +52,8 @@ public final class ToastController: NSObject {
             return
         }
 
+        flushPendingDismissHandlers(preserving: manager.isShowing ? manager.presentationID : nil)
+
         sceneDelegate?.updateOverlay {
             wrappedContent()
         }
@@ -84,6 +86,8 @@ public final class ToastController: NSObject {
             return
         }
 
+        flushPendingDismissHandlers(preserving: manager.isShowing ? manager.presentationID : nil)
+
         if manager.isShowing {
             let previousContent = lastContent
             let replacementID = manager.beginReplacement()
@@ -112,12 +116,14 @@ public final class ToastController: NSObject {
     public func dismiss() {
         pendingShowTask?.cancel()
         pendingShowTask = nil
+        flushPendingDismissHandlers(preserving: toastManager?.presentationID)
         toastManager?.dismiss()
     }
 
     public func remove() {
         pendingShowTask?.cancel()
         pendingShowTask = nil
+        flushPendingDismissHandlers(preserving: nil)
         sceneDelegate?.removeOverlay()
         toastManager = nil
         lastContent = nil
@@ -194,6 +200,7 @@ private extension ToastController {
             guard !Task.isCancelled else { return }
 
             manager.show()
+            flushPendingDismissHandlers(preserving: manager.presentationID)
 
             if let onDismiss {
                 presentationDismissHandlers[manager.presentationID] = onDismiss
@@ -213,6 +220,19 @@ private extension ToastController {
 
         if toastManager?.isShowing == false {
             lastContent = nil
+        }
+    }
+
+    func flushPendingDismissHandlers(preserving activeID: UUID?) {
+        let idsToFlush = presentationDismissHandlers.keys.compactMap { id -> UUID? in
+            guard let activeID else { return id }
+            return id == activeID ? nil : id
+        }
+
+        for id in idsToFlush {
+            if let handler = presentationDismissHandlers.removeValue(forKey: id) {
+                handler()
+            }
         }
     }
 }

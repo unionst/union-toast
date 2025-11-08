@@ -28,11 +28,6 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             .onChange(of: item) { _, newValue in
                 handleItemChange(newValue)
             }
-            .onChange(of: toastManager?.isShowing == false) { hidden in
-                if hidden {
-                    clearBindingIfNeeded(for: toastManager?.presentationID)
-                }
-            }
     }
 
     private func handleItemChange(_ newItem: Item?) {
@@ -47,6 +42,13 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         guard let newItem else {
             pendingShowTask?.cancel()
             pendingShowTask = nil
+
+            if let manager = toastManager {
+                cancelPendingReplacements(excluding: manager.presentationID)
+            } else {
+                cancelPendingReplacements(excluding: nil)
+            }
+
             toastManager?.dismiss()
             lastPresentedItem = nil
             return
@@ -73,6 +75,10 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
 
         guard let manager = toastManager else {
             return
+        }
+
+        if manager.isShowing {
+            cancelPendingReplacements(excluding: manager.presentationID)
         }
 
         if !manager.isShowing {
@@ -104,18 +110,19 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     @discardableResult
     private func clearBindingIfNeeded(for presentationID: UUID?) -> Bool {
         guard let presentationID,
-              let dismissedItemID = presentationToItemID[presentationID] else {
+              let dismissedItemID = presentationToItemID.removeValue(forKey: presentationID) else {
             return false
         }
 
-        presentationToItemID.removeValue(forKey: presentationID)
-
-        if item?.id == dismissedItemID || item == nil {
+        if item?.id == dismissedItemID {
             item = nil
-            return true
+        }
+        
+        if lastPresentedItem?.id == dismissedItemID {
+            lastPresentedItem = nil
         }
 
-        return false
+        return true
     }
 
     private func scheduleShow(for item: Item, using manager: ToastManager) {
@@ -131,6 +138,18 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         }
     }
 
+    private func cancelPendingReplacements(excluding activeID: UUID?) {
+        let idsToCancel = presentationToItemID.keys.compactMap { id -> UUID? in
+            guard let activeID else { return id }
+            return id == activeID ? nil : id
+        }
+
+        for id in idsToCancel {
+            if clearBindingIfNeeded(for: id) {
+                onDismiss?()
+            }
+        }
+    }
     private func configureToastOverlay() {
         guard !hasConfiguredOverlay else { return }
         hasConfiguredOverlay = true
