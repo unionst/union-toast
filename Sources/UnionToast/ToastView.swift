@@ -11,6 +11,7 @@ import UnionGestures
 
 struct ToastView<Content: View>: View {
     @Environment(ToastManager.self) private var toastManager
+    @Environment(\.toastBackgroundConfiguration) private var toastBackgroundConfiguration
 
     let content: () -> Content
     let previousContent: (() -> Content)?
@@ -281,22 +282,28 @@ struct ToastView<Content: View>: View {
 
         ZStack(alignment: .top) {
             if displayPreviousContent, let previousContent {
-                applyOutgoingEffects(to: previousContent(), progress: replacementOutgoingProgress)
+                applyOutgoingEffects(
+                    to: decoratedContent(previousContent()),
+                    progress: replacementOutgoingProgress
+                )
                     .allowsHitTesting(false)
             }
 
-            applyIncomingEffects(to: content(), progress: effectiveProgress)
-                .onAppear {
-                    if let replacementID = replacementPresentationID,
-                       replacementID == toastManager.replacementPresentationID {
-                        startReplacementAnimationIfNeeded(for: replacementID)
+            applyIncomingEffects(
+                to: decoratedContent(content())
+                    .onAppear {
+                        if let replacementID = replacementPresentationID,
+                           replacementID == toastManager.replacementPresentationID {
+                            startReplacementAnimationIfNeeded(for: replacementID)
+                        }
                     }
-                }
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { value in
-                    toastManager.contentHeight = value
-                }
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { value in
+                        toastManager.contentHeight = value
+                    },
+                progress: effectiveProgress
+            )
         }
     }
 
@@ -361,6 +368,13 @@ struct ToastView<Content: View>: View {
         if id == "bottom" {
             toastManager.dismiss()
         }
+    }
+
+    @ViewBuilder
+    func decoratedContent<Inner: View>(_ view: Inner) -> some View {
+        view
+            .modifier(ToastBackgroundWrapper(configuration: toastBackgroundConfiguration))
+            .padding(.horizontal)
     }
 }
 
