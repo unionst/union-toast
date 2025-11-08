@@ -34,4 +34,18 @@ public extension View {
     ) -> some View {
         modifier(ToastModifier(isPresented: isPresented, dismissDelay: dismissDelay, onDismiss: onDismiss, toastContent: content))
     }
+
+    /// Present a toast using an optional Identifiable item as the data source.
+    ///
+    /// When `item` becomes non-`nil`, the toast renders the supplied content closure.
+    /// When the toast dismisses—either automatically, via swipe, or programmatically—
+    /// the binding resets to `nil` and `onDismiss` executes.
+    func toast<Item, Content>(
+        item: Binding<Item?>,
+        onDismiss: (() -> Void)? = nil,
+        dismissDelay: Duration? = nil,
+        @ViewBuilder content: @escaping (Item) -> Content
+    ) -> some View where Item: Identifiable & Equatable, Content: View {
+        modifier(ToastItemModifier(item: item, dismissDelay: dismissDelay, onDismiss: onDismiss, toastContent: content))
+    }
 }

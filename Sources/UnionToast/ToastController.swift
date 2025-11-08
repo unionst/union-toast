@@ -54,7 +54,7 @@ public final class ToastController: NSObject {
             try? await Task.sleep(for: .milliseconds(16))
             await MainActor.run {
                 sceneDelegate.removeOverlay()
-                toastManager = sceneDelegate.addOverlay(dismissDelay: dismissDelay, content: content)
+                toastManager = sceneDelegate.addOverlay(dismissDelay: dismissDelay, onDismiss: nil, content: content)
 
                 Task {
                     try? await Task.sleep(for: .milliseconds(16))
@@ -85,7 +85,7 @@ public final class ToastController: NSObject {
             try? await Task.sleep(for: .milliseconds(16))
             await MainActor.run {
                 sceneDelegate.removeOverlay()
-                toastManager = sceneDelegate.addOverlay(dismissDelay: dismissDelay, content: content)
+                toastManager = sceneDelegate.addOverlay(dismissDelay: dismissDelay, onDismiss: nil, content: content)
 
                 Task {
                     try? await Task.sleep(for: .milliseconds(16))

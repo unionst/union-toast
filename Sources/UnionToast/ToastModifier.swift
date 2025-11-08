@@ -75,7 +75,9 @@ struct ToastModifier<ToastContent: View>: ViewModifier {
 
         let delegate = ToastSceneDelegate()
         delegate.configure(with: scene)
-        let manager = delegate.addOverlay(dismissDelay: dismissDelay, onDismiss: onDismiss, content: toastContent)
+        let manager = delegate.addOverlay(dismissDelay: dismissDelay, onDismiss: { _ in
+            onDismiss?()
+        }, content: toastContent)
 
         sceneDelegate = delegate
         toastManager = manager

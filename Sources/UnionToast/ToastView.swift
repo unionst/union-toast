@@ -201,7 +201,12 @@ struct ToastView<Content: View>: View {
                         if !hasInitializedPosition {
                             hasInitializedPosition = true
                             DispatchQueue.main.async {
-                                scrollProxy.scrollTo("unit", anchor: .bottom)
+                                if toastManager.isShowing {
+                                    scrollProxy.scrollTo("unit", anchor: .top)
+                                    animationProgress = 1
+                                } else {
+                                    scrollProxy.scrollTo("unit", anchor: .bottom)
+                                }
                             }
                         }
                     }

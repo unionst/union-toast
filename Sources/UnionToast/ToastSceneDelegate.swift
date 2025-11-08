@@ -20,7 +20,7 @@ class ToastSceneDelegate: NSObject {
         self.windowScene = windowScene
     }
     
-    func addOverlay<Content: View>(dismissDelay: Duration? = nil, onDismiss: (() -> Void)? = nil, @ViewBuilder content: @escaping () -> Content) -> ToastManager {
+    func addOverlay<Content: View>(dismissDelay: Duration? = nil, onDismiss: ((UUID) -> Void)? = nil, @ViewBuilder content: @escaping () -> Content) -> ToastManager {
         guard let scene = windowScene else {
             print("🍞 ToastSceneDelegate: No window scene available")
             return dismissDelay != nil ? ToastManager(dismissDelay: dismissDelay!, onDismiss: onDismiss) : ToastManager(onDismiss: onDismiss)
@@ -62,11 +62,20 @@ class ToastSceneDelegate: NSObject {
     
     func updateOverlay<Content: View>(@ViewBuilder content: @escaping () -> Content) {
         guard let manager = toastManager,
-              let hosting = hostingController as? UIHostingController<ToastOverlayView<Content>> else {
+              let overlayWindow = overlayWindow else {
             return
         }
 
-        hosting.rootView = ToastOverlayView(manager: manager, content: content)
+        let hosting = UIHostingController(
+            rootView: ToastOverlayView(manager: manager, content: content)
+        )
+        hosting.view.backgroundColor = .clear
+
+        overlayWindow.rootViewController = hosting
+        self.hostingController = hosting
+
+        hosting.view.setNeedsLayout()
+        hosting.view.layoutIfNeeded()
     }
     
     func removeOverlay() {

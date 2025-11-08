@@ -13,25 +13,24 @@ class ToastManager {
     private(set) var isShowing = false
     private var dismissTask: Task<Void, Never>?
     private var dismissTaskID = UUID()
+    private(set) var presentationID = UUID()
     var contentHeight: CGFloat = 0
 
     private let dismissDelay: Duration
-    private let onDismiss: (() -> Void)?
+    private let onDismiss: ((UUID) -> Void)?
 
-    init(dismissDelay: Duration = .seconds(6.5), onDismiss: (() -> Void)? = nil) {
+    init(dismissDelay: Duration = .seconds(6.5), onDismiss: ((UUID) -> Void)? = nil) {
         self.dismissDelay = dismissDelay
         self.onDismiss = onDismiss
     }
 
-    var newDismissTask: Task<Void, Never>? {
-        let taskID = UUID()
-        dismissTaskID = taskID
+    private func makeDismissTask(for id: UUID) -> Task<Void, Never>? {
         return Task {
             try? await Task.sleep(for: dismissDelay)
             guard !Task.isCancelled else {
                 return
             }
-            guard taskID == self.dismissTaskID else {
+            guard id == self.dismissTaskID else {
                 return
             }
             await dismiss()
@@ -40,15 +39,18 @@ class ToastManager {
 
     func show() {
         cancelTask()
+        let newPresentationID = UUID()
+        presentationID = newPresentationID
+        dismissTaskID = newPresentationID
         isShowing = true
-        dismissTask = newDismissTask
+        dismissTask = makeDismissTask(for: newPresentationID)
     }
     
     func dismiss() {
         cancelTask()
         guard isShowing else { return }
         isShowing = false
-        onDismiss?()
+        onDismiss?(presentationID)
     }
 
     private func cancelTask() {
@@ -63,6 +65,7 @@ class ToastManager {
     
     func resumeTimer() {
         guard isShowing else { return }
-        dismissTask = newDismissTask
+        dismissTaskID = presentationID
+        dismissTask = makeDismissTask(for: presentationID)
     }
 }
