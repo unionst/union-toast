@@ -24,7 +24,9 @@ struct ToastModifier<ToastContent: View>: ViewModifier {
             }
             .onChange(of: isPresented) {
                 if isPresented {
-                    sceneDelegate?.updateOverlay(content: toastContent)
+                    sceneDelegate?.updateOverlay {
+                        toastContent()
+                    }
                     showToast()
                 } else {
                     hideToast()

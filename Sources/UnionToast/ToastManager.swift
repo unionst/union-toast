@@ -14,6 +14,9 @@ class ToastManager {
     private var dismissTask: Task<Void, Never>?
     private var dismissTaskID = UUID()
     private(set) var presentationID = UUID()
+    private(set) var replacementPresentationID: UUID?
+    private(set) var isReplacing = false
+    private var pendingDismissPresentationID: UUID?
     var contentHeight: CGFloat = 0
 
     private let dismissDelay: Duration
@@ -38,6 +41,7 @@ class ToastManager {
     }
 
     func show() {
+        cancelReplacement()
         cancelTask()
         let newPresentationID = UUID()
         presentationID = newPresentationID
@@ -50,6 +54,7 @@ class ToastManager {
         cancelTask()
         guard isShowing else { return }
         isShowing = false
+        cancelReplacement()
         onDismiss?(presentationID)
     }
 
@@ -65,7 +70,42 @@ class ToastManager {
     
     func resumeTimer() {
         guard isShowing else { return }
+        guard !isReplacing else { return }
         dismissTaskID = presentationID
         dismissTask = makeDismissTask(for: presentationID)
+    }
+
+    @discardableResult
+    func beginReplacement() -> UUID? {
+        guard isShowing else { return nil }
+
+        cancelTask()
+        let newID = UUID()
+        replacementPresentationID = newID
+        pendingDismissPresentationID = presentationID
+        isReplacing = true
+        return newID
+    }
+
+    func completeReplacement() {
+        guard isReplacing, let newID = replacementPresentationID else { return }
+
+        replacementPresentationID = nil
+        isReplacing = false
+        presentationID = newID
+        dismissTaskID = newID
+        isShowing = true
+        dismissTask = makeDismissTask(for: newID)
+
+        if let outgoingID = pendingDismissPresentationID {
+            pendingDismissPresentationID = nil
+            onDismiss?(outgoingID)
+        }
+    }
+
+    func cancelReplacement() {
+        replacementPresentationID = nil
+        pendingDismissPresentationID = nil
+        isReplacing = false
     }
 }

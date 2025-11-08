@@ -13,6 +13,18 @@ struct ToastView<Content: View>: View {
     @Environment(ToastManager.self) private var toastManager
 
     let content: () -> Content
+    let previousContent: (() -> Content)?
+    let replacementPresentationID: UUID?
+
+    init(
+        previousContent: (() -> Content)? = nil,
+        replacementPresentationID: UUID? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.previousContent = previousContent
+        self.replacementPresentationID = replacementPresentationID
+        self.content = content
+    }
 
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
@@ -26,6 +38,12 @@ struct ToastView<Content: View>: View {
     struct ScrollData: Equatable {
         let progress: CGFloat
         let offset: CGFloat
+    }
+
+    enum ReplacementPhase {
+        case idle
+        case outgoing
+        case incoming
     }
 
     @State private var suppressNextTempScroll = false
@@ -42,6 +60,12 @@ struct ToastView<Content: View>: View {
     @State private var willDismissResetTask: Task<Void, Never>?
     @State private var lastTrackedProgress: CGFloat = 0
     @State private var dragStartedFromBottom = false
+    @State private var replacementPhase: ReplacementPhase = .idle
+    @State private var displayPreviousContent = false
+    @State private var replacementOutgoingProgress: CGFloat = 1
+    @State private var replacementIncomingProgress: CGFloat = 1
+    @State private var activeReplacementID: UUID?
+    @State private var replacementAnimationTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geometryProxy in
@@ -239,22 +263,35 @@ struct ToastView<Content: View>: View {
                 }
             }
         }
+        .onChange(of: toastManager.replacementPresentationID) { _, newID in
+            if let newID {
+                startReplacementAnimationIfNeeded(for: newID)
+            } else {
+                cancelReplacementAnimation()
+            }
+        }
+        .onDisappear {
+            cancelReplacementAnimation()
+        }
     }
 
     @ViewBuilder
     func toastContent(proxy outerProxy: GeometryProxy) -> some View {
-        if #available(iOS 26.0, *) {
-            content()
-                .blur(radius: (1 - animationProgress) * 10)
-                .scaleEffect(0.5 + (animationProgress * 0.5))
-                .opacity(0.5 + (animationProgress * 0.5))
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { value in
-                    toastManager.contentHeight = value
+        let effectiveProgress = replacementPhase == .idle ? animationProgress : replacementIncomingProgress
+
+        ZStack(alignment: .top) {
+            if displayPreviousContent, let previousContent {
+                applyOutgoingEffects(to: previousContent(), progress: replacementOutgoingProgress)
+                    .allowsHitTesting(false)
+            }
+
+            applyIncomingEffects(to: content(), progress: effectiveProgress)
+                .onAppear {
+                    if let replacementID = replacementPresentationID,
+                       replacementID == toastManager.replacementPresentationID {
+                        startReplacementAnimationIfNeeded(for: replacementID)
+                    }
                 }
-        } else {
-            content()
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { value in
@@ -323,6 +360,127 @@ struct ToastView<Content: View>: View {
     func checkID(_ id: String?) {
         if id == "bottom" {
             toastManager.dismiss()
+        }
+    }
+}
+
+// MARK: - Replacement Helpers
+
+private extension ToastView {
+    func startReplacementAnimationIfNeeded(for replacementID: UUID) {
+        guard previousContent != nil else { return }
+        guard activeReplacementID != replacementID else { return }
+
+        replacementAnimationTask?.cancel()
+        replacementAnimationTask = nil
+
+        activeReplacementID = replacementID
+        displayPreviousContent = true
+        replacementOutgoingProgress = 1
+        replacementIncomingProgress = 0
+        replacementPhase = .outgoing
+
+        let outgoingDuration = replacementOutgoingDuration
+        let incomingDelay = replacementIncomingDelay
+        let incomingDuration = replacementIncomingDuration
+
+        replacementAnimationTask = Task { @MainActor in
+            let outgoingAnimation = Animation.easeInOut(duration: outgoingDuration)
+            withAnimation(outgoingAnimation) {
+                replacementOutgoingProgress = 0
+            }
+
+            if incomingDelay > 0 {
+                try? await Task.sleep(for: .milliseconds(Int(incomingDelay * 1000)))
+            }
+            if Task.isCancelled { return }
+
+            replacementPhase = .incoming
+            let incomingAnimation = Animation.interpolatingSpring(
+                mass: 1.0,
+                stiffness: 92,
+                damping: 14,
+                initialVelocity: 6
+            ).speed(1.1)
+            withAnimation(incomingAnimation) {
+                replacementIncomingProgress = 1
+                animationProgress = 1
+            }
+
+            let totalDuration = max(outgoingDuration, incomingDelay + incomingDuration)
+            try? await Task.sleep(for: .milliseconds(Int(totalDuration * 1000)))
+            if Task.isCancelled { return }
+
+            toastManager.completeReplacement()
+            resetReplacementAnimationState()
+        }
+    }
+
+    func cancelReplacementAnimation() {
+        replacementAnimationTask?.cancel()
+        replacementAnimationTask = nil
+        resetReplacementAnimationState()
+    }
+
+    func resetReplacementAnimationState() {
+        displayPreviousContent = false
+        replacementPhase = .idle
+        replacementOutgoingProgress = 1
+        replacementIncomingProgress = 1
+        activeReplacementID = nil
+    }
+
+    var replacementOutgoingDuration: Double {
+        if #available(iOS 26.0, *) {
+            return 0.32
+        } else {
+            return 0.22
+        }
+    }
+
+    var replacementIncomingDuration: Double {
+        if #available(iOS 26.0, *) {
+            return 0.36
+        } else {
+            return 0.26
+        }
+    }
+
+    var replacementIncomingDelay: Double {
+        if #available(iOS 26.0, *) {
+            return 0.06
+        } else {
+            return 0.04
+        }
+    }
+
+    @ViewBuilder
+    func applyIncomingEffects<V: View>(to view: V, progress: CGFloat) -> some View {
+        if #available(iOS 26.0, *) {
+            view
+                .scaleEffect(0.72 + (progress * 0.28))
+                .opacity(0.4 + (progress * 0.6))
+                .blur(radius: (1 - progress) * 8)
+                .offset(y: (1 - progress) * 24)
+        } else {
+            view
+                .opacity(progress)
+                .offset(y: (1 - progress) * 12)
+        }
+    }
+
+    @ViewBuilder
+    func applyOutgoingEffects<V: View>(to view: V, progress: CGFloat) -> some View {
+        if #available(iOS 26.0, *) {
+            view
+                .scaleEffect(0.72 + (progress * 0.28))
+                .opacity(0.4 + (progress * 0.6))
+                .blur(radius: (1 - progress) * 8)
+                .offset(y: -(1 - progress) * 28)
+        } else {
+            view
+                .opacity(progress)
+                .offset(y: -(1 - progress) * 12)
         }
     }
 }

@@ -18,6 +18,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     @State private var toastManager: ToastManager?
     @State private var presentationToItemID: [UUID: Item.ID] = [:]
     @State private var pendingShowTask: Task<Void, Never>?
+    @State private var lastPresentedItem: Item?
 
     func body(content: Content) -> some View {
         content
@@ -47,6 +48,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             pendingShowTask?.cancel()
             pendingShowTask = nil
             toastManager?.dismiss()
+            lastPresentedItem = nil
             return
         }
 
@@ -57,26 +59,46 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         }
 
         if toastManager == nil {
-            let currentItem = newItem
             let manager = delegate.addOverlay(
                 dismissDelay: dismissDelay,
-                onDismiss: onDismissHandler,
-                content: {
-                    toastContent(currentItem)
-                }
-            )
+                onDismiss: onDismissHandler
+            ) {
+                toastContent(newItem)
+            }
             toastManager = manager
-            scheduleShow(for: currentItem, using: manager)
+            lastPresentedItem = newItem
+            scheduleShow(for: newItem, using: manager)
             return
         }
 
-        let currentItem = newItem
-        delegate.updateOverlay {
-            toastContent(currentItem)
+        guard let manager = toastManager else {
+            return
         }
-        if let manager = toastManager {
-            scheduleShow(for: currentItem, using: manager)
+
+        if !manager.isShowing {
+            delegate.updateOverlay {
+                toastContent(newItem)
+            }
+            lastPresentedItem = newItem
+            scheduleShow(for: newItem, using: manager)
+            return
         }
+
+        pendingShowTask?.cancel()
+        let previousItem = lastPresentedItem ?? newItem
+        let replacementID = manager.beginReplacement()
+
+        delegate.updateOverlay(
+            previousContent: { toastContent(previousItem) },
+            replacementPresentationID: replacementID
+        ) {
+            toastContent(newItem)
+        }
+
+        if let newID = replacementID {
+            presentationToItemID[newID] = newItem.id
+        }
+        lastPresentedItem = newItem
     }
 
     @discardableResult
@@ -104,7 +126,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             if Task.isCancelled { return }
             manager.show()
             if Task.isCancelled { return }
-            presentationToItemID = [manager.presentationID: item.id]
+            presentationToItemID[manager.presentationID] = item.id
             pendingShowTask = nil
         }
     }

@@ -35,7 +35,9 @@ class ToastSceneDelegate: NSObject {
         self.toastManager = manager
         
         let hosting = UIHostingController(
-            rootView: ToastOverlayView(manager: manager, content: content)
+            rootView: ToastOverlayView(manager: manager) {
+                content()
+            }
         )
         hosting.view.backgroundColor = .clear
 
@@ -60,14 +62,24 @@ class ToastSceneDelegate: NSObject {
         return manager
     }
     
-    func updateOverlay<Content: View>(@ViewBuilder content: @escaping () -> Content) {
+    func updateOverlay<Content: View>(
+        previousContent: (() -> Content)? = nil,
+        replacementPresentationID: UUID? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
         guard let manager = toastManager,
               let overlayWindow = overlayWindow else {
             return
         }
 
         let hosting = UIHostingController(
-            rootView: ToastOverlayView(manager: manager, content: content)
+            rootView: ToastOverlayView(
+                manager: manager,
+                previousContent: previousContent,
+                replacementPresentationID: replacementPresentationID
+            ) {
+                content()
+            }
         )
         hosting.view.backgroundColor = .clear
 

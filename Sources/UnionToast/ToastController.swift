@@ -15,6 +15,9 @@ public final class ToastController: NSObject {
     
     private var sceneDelegate: ToastSceneDelegate?
     private var toastManager: ToastManager?
+    private var lastContent: (() -> AnyView)?
+    private var pendingShowTask: Task<Void, Never>?
+    private var presentationDismissHandlers: [UUID: () -> Void] = [:]
 
     private override init() {
         super.init()
@@ -36,74 +39,89 @@ public final class ToastController: NSObject {
     }
 
     public func show<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
-        if toastManager?.isShowing == true {
+        guard toastManager?.isShowing != true else { return }
+
+        let wrappedContent: () -> AnyView = {
+            AnyView(content())
+        }
+
+        guard let manager = ensureManager(
+            dismissDelay: dismissDelay,
+            initialContent: wrappedContent
+        ) else {
             return
         }
 
-        if sceneDelegate == nil {
-            setupToastOverlay()
+        sceneDelegate?.updateOverlay {
+            wrappedContent()
         }
 
-        guard let sceneDelegate = sceneDelegate else {
-            return
-        }
-
-        toastManager?.dismiss()
-
-        Task {
-            try? await Task.sleep(for: .milliseconds(16))
-            await MainActor.run {
-                sceneDelegate.removeOverlay()
-                toastManager = sceneDelegate.addOverlay(dismissDelay: dismissDelay, onDismiss: nil, content: content)
-
-                Task {
-                    try? await Task.sleep(for: .milliseconds(16))
-                    await MainActor.run {
-                        toastManager?.show()
-                    }
-                }
-            }
-        }
+        lastContent = wrappedContent
+        scheduleShow(for: manager, onDismiss: nil)
     }
 
     public func forceShow<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
-        // Force show by temporarily bypassing the isShowing check
-        let wasShowing = toastManager?.isShowing
-        toastManager?.dismiss()
+        remove()
+        show(dismissDelay: dismissDelay, content: content)
+    }
 
-        // Setup overlay if not already done
-        if sceneDelegate == nil {
-            setupToastOverlay()
+    public func show<Item: Identifiable & Equatable, ToastContent: View>(
+        item: Item,
+        dismissDelay: Duration? = nil,
+        onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping (Item) -> ToastContent
+    ) {
+        pendingShowTask?.cancel()
+
+        let wrappedContent: () -> AnyView = {
+            AnyView(content(item))
         }
 
-        guard let sceneDelegate = sceneDelegate else {
+        guard let manager = ensureManager(
+            dismissDelay: dismissDelay,
+            initialContent: wrappedContent
+        ) else {
             return
         }
 
-        // Small delay to ensure clean state, then create new overlay
-        Task {
-            try? await Task.sleep(for: .milliseconds(16))
-            await MainActor.run {
-                sceneDelegate.removeOverlay()
-                toastManager = sceneDelegate.addOverlay(dismissDelay: dismissDelay, onDismiss: nil, content: content)
+        if manager.isShowing {
+            let previousContent = lastContent
+            let replacementID = manager.beginReplacement()
 
-                Task {
-                    try? await Task.sleep(for: .milliseconds(16))
-                    await MainActor.run {
-                        toastManager?.show()
-                    }
-                }
+            sceneDelegate?.updateOverlay(
+                previousContent: previousContent,
+                replacementPresentationID: replacementID
+            ) {
+                wrappedContent()
             }
+
+            if let replacementID, let onDismiss {
+                presentationDismissHandlers[replacementID] = onDismiss
+            }
+
+            lastContent = wrappedContent
+        } else {
+            sceneDelegate?.updateOverlay {
+                wrappedContent()
+            }
+            lastContent = wrappedContent
+            scheduleShow(for: manager, onDismiss: onDismiss)
         }
     }
 
     public func dismiss() {
+        pendingShowTask?.cancel()
+        pendingShowTask = nil
         toastManager?.dismiss()
     }
 
     public func remove() {
+        pendingShowTask?.cancel()
+        pendingShowTask = nil
         sceneDelegate?.removeOverlay()
         toastManager = nil
+        lastContent = nil
+        presentationDismissHandlers.removeAll()
     }
 }
 
@@ -122,6 +140,15 @@ public extension ToastController {
     static func forceShow<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
         shared.forceShow(dismissDelay: dismissDelay, content: content)
     }
+
+    static func show<Item: Identifiable & Equatable, ToastContent: View>(
+        item: Item,
+        dismissDelay: Duration? = nil,
+        onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping (Item) -> ToastContent
+    ) {
+        shared.show(item: item, dismissDelay: dismissDelay, onDismiss: onDismiss, content: content)
+    }
     
     static func dismiss() {
         shared.dismiss()
@@ -129,5 +156,63 @@ public extension ToastController {
     
     static func remove() {
         shared.remove()
+    }
+}
+
+// MARK: - Private helpers
+private extension ToastController {
+    func ensureManager(
+        dismissDelay: Duration?,
+        initialContent: @escaping () -> AnyView
+    ) -> ToastManager? {
+        if sceneDelegate == nil {
+            setupToastOverlay()
+        }
+
+        guard let sceneDelegate = sceneDelegate else {
+            return nil
+        }
+
+        if toastManager == nil {
+            toastManager = sceneDelegate.addOverlay(
+                dismissDelay: dismissDelay,
+                onDismiss: { [weak self] presentationID in
+                    self?.handleManagerDismiss(for: presentationID)
+                }
+            ) {
+                initialContent()
+            }
+        }
+
+        return toastManager
+    }
+
+    func scheduleShow(for manager: ToastManager, onDismiss: (() -> Void)?) {
+        pendingShowTask?.cancel()
+        pendingShowTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            guard !Task.isCancelled else { return }
+
+            manager.show()
+
+            if let onDismiss {
+                presentationDismissHandlers[manager.presentationID] = onDismiss
+            }
+
+            pendingShowTask = nil
+        }
+    }
+
+    func handleManagerDismiss(for presentationID: UUID) {
+        pendingShowTask?.cancel()
+        pendingShowTask = nil
+
+        if let handler = presentationDismissHandlers.removeValue(forKey: presentationID) {
+            handler()
+        }
+
+        if toastManager?.isShowing == false {
+            lastContent = nil
+        }
     }
 }
