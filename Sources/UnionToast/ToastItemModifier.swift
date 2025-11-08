@@ -19,6 +19,8 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     @State private var presentationToItemID: [UUID: Item.ID] = [:]
     @State private var pendingShowTask: Task<Void, Never>?
     @State private var lastPresentedItem: Item?
+    @State private var pendingReplacementItem: Item?
+    @State private var replacementTransitionTask: Task<Void, Never>?
 
     func body(content: Content) -> some View {
         content
@@ -42,6 +44,9 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         guard let newItem else {
             pendingShowTask?.cancel()
             pendingShowTask = nil
+            replacementTransitionTask?.cancel()
+            replacementTransitionTask = nil
+            pendingReplacementItem = nil
 
             if let manager = toastManager {
                 cancelPendingReplacements(excluding: manager.presentationID)
@@ -78,33 +83,19 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         }
 
         if manager.isShowing {
-            cancelPendingReplacements(excluding: manager.presentationID)
-        }
-
-        if !manager.isShowing {
-            delegate.updateOverlay {
-                toastContent(newItem)
-            }
-            lastPresentedItem = newItem
-            scheduleShow(for: newItem, using: manager)
+            beginSequentialReplacement(for: newItem, using: manager, delegate: delegate)
             return
         }
 
-        pendingShowTask?.cancel()
-        let previousItem = lastPresentedItem ?? newItem
-        let replacementID = manager.beginReplacement()
+        replacementTransitionTask?.cancel()
+        replacementTransitionTask = nil
+        pendingReplacementItem = nil
 
-        delegate.updateOverlay(
-            previousContent: { toastContent(previousItem) },
-            replacementPresentationID: replacementID
-        ) {
+        delegate.updateOverlay {
             toastContent(newItem)
         }
-
-        if let newID = replacementID {
-            presentationToItemID[newID] = newItem.id
-        }
         lastPresentedItem = newItem
+        scheduleShow(for: newItem, using: manager)
     }
 
     @discardableResult
@@ -134,6 +125,9 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             manager.show()
             if Task.isCancelled { return }
             presentationToItemID[manager.presentationID] = item.id
+            if pendingReplacementItem?.id == item.id {
+                pendingReplacementItem = nil
+            }
             pendingShowTask = nil
         }
     }
@@ -189,6 +183,49 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         let delegate = ToastSceneDelegate()
         delegate.configure(with: scene)
         sceneDelegate = delegate
+    }
+
+    private func beginSequentialReplacement(for newItem: Item, using manager: ToastManager, delegate: ToastSceneDelegate) {
+        pendingShowTask?.cancel()
+        pendingReplacementItem = newItem
+        replacementTransitionTask?.cancel()
+        replacementTransitionTask = nil
+
+        replacementTransitionTask = Task { @MainActor in
+            defer {
+                if pendingReplacementItem?.id == newItem.id {
+                    pendingReplacementItem = nil
+                }
+                replacementTransitionTask = nil
+            }
+
+            if manager.isShowing {
+                manager.dismiss()
+            }
+
+            try? await Task.sleep(for: outgoingSettleDuration)
+            if Task.isCancelled { return }
+            guard pendingReplacementItem?.id == newItem.id else { return }
+
+            delegate.updateOverlay {
+                toastContent(newItem)
+            }
+            lastPresentedItem = newItem
+
+            try? await Task.sleep(for: interToastDelay)
+            if Task.isCancelled { return }
+            guard pendingReplacementItem?.id == newItem.id else { return }
+
+            scheduleShow(for: newItem, using: manager)
+        }
+    }
+
+    private var outgoingSettleDuration: Duration {
+        .milliseconds(40)
+    }
+
+    private var interToastDelay: Duration {
+        .milliseconds(40)
     }
 }
 
