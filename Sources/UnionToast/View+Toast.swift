@@ -28,9 +28,10 @@ public extension View {
     /// ```
     func toast<Content: View>(
         isPresented: Binding<Bool>,
+        onDismiss: (() -> Void)? = nil,
         dismissDelay: Duration? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        modifier(ToastModifier(isPresented: isPresented, dismissDelay: dismissDelay, toastContent: content))
+        modifier(ToastModifier(isPresented: isPresented, dismissDelay: dismissDelay, onDismiss: onDismiss, toastContent: content))
     }
 }

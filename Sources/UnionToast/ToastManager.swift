@@ -16,9 +16,11 @@ class ToastManager {
     var contentHeight: CGFloat = 0
 
     private let dismissDelay: Duration
+    private let onDismiss: (() -> Void)?
 
-    init(dismissDelay: Duration = .seconds(6.5)) {
+    init(dismissDelay: Duration = .seconds(6.5), onDismiss: (() -> Void)? = nil) {
         self.dismissDelay = dismissDelay
+        self.onDismiss = onDismiss
     }
 
     var newDismissTask: Task<Void, Never>? {
@@ -44,7 +46,9 @@ class ToastManager {
     
     func dismiss() {
         cancelTask()
+        guard isShowing else { return }
         isShowing = false
+        onDismiss?()
     }
 
     private func cancelTask() {
