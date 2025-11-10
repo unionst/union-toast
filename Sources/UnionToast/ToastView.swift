@@ -437,7 +437,7 @@ private extension ToastView {
         replacementAnimationTask = Task { @MainActor in
             let outgoingAnimation = Animation.easeOut(duration: outgoingDuration)
             withAnimation(outgoingAnimation) {
-                replacementOutgoingProgress = 0
+                replacementOutgoingProgress = 0.01
             }
 
             if incomingDelay > 0 {
@@ -461,6 +461,11 @@ private extension ToastView {
                 replacementIncomingProgress = 1
                 animationProgress = 1
             }
+
+            try? await Task.sleep(for: .milliseconds(Int(incomingDuration * 1000)))
+            if Task.isCancelled { return }
+
+            replacementOutgoingProgress = 0
 
             let totalDuration = max(outgoingDuration, incomingDelay + incomingDuration)
             // Add extra time for spring to fully settle (springs overshoot beyond their duration)
@@ -503,7 +508,7 @@ private extension ToastView {
     }
 
     var replacementIncomingDelay: Double {
-        return 0.06
+        return 0.0
     }
 
     @ViewBuilder
@@ -531,7 +536,7 @@ private extension ToastView {
                 .offset(y: -(1 - progress) * 120)
         } else {
             view
-                .offset(y: -(1 - progress) * 80)
+                .offset(y: -(1 - progress) * 150)
         }
     }
 
@@ -544,8 +549,10 @@ private extension ToastView {
                 .blur(radius: (1 - progress) * 8)
                 .offset(y: -(1 - progress) * 120)
         } else {
+            let opacityValue: CGFloat = progress > 0.01 ? 1.0 : max(0, progress / 0.01)
             view
                 .scaleEffect(0.8 + (progress * 0.2))
+                .opacity(opacityValue)
         }
     }
 
