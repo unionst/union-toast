@@ -36,7 +36,7 @@ class ToastManager {
             guard id == self.dismissTaskID else {
                 return
             }
-            await dismiss()
+            dismiss()
         }
     }
 

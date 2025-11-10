@@ -292,7 +292,7 @@ struct ToastView<Content: View>: View {
             }
 
             if isDisappearing {
-                applyOutgoingEffects(
+                applyDismissalEffects(
                     to: decoratedContent(content())
                         .onAppear {
                             if let replacementID = replacementPresentationID,
@@ -446,12 +446,17 @@ private extension ToastView {
             if Task.isCancelled { return }
 
             replacementPhase = .incoming
-            let incomingAnimation = Animation.interpolatingSpring(
-                mass: 1.0,
-                stiffness: 92,
-                damping: 14,
-                initialVelocity: 6
-            ).speed(1.1)
+            var incomingAnimation: Animation = .default
+
+            if #available(iOS 26.0, *) {
+                incomingAnimation = Animation.interpolatingSpring(
+                    mass: 1.0,
+                    stiffness: 92,
+                    damping: 14,
+                    initialVelocity: 6
+                ).speed(1.1)
+            }
+
             withAnimation(incomingAnimation) {
                 replacementIncomingProgress = 1
                 animationProgress = 1
@@ -493,16 +498,12 @@ private extension ToastView {
         if #available(iOS 26.0, *) {
             return 0.32
         } else {
-            return 0.24
+            return 0.4
         }
     }
 
     var replacementIncomingDelay: Double {
-        if #available(iOS 26.0, *) {
-            return 0.06
-        } else {
-            return 0.04
-        }
+        return 0.06
     }
 
     @ViewBuilder
@@ -530,7 +531,6 @@ private extension ToastView {
                 .offset(y: -(1 - progress) * 120)
         } else {
             view
-                .opacity(progress)
                 .offset(y: -(1 - progress) * 80)
         }
     }
@@ -545,8 +545,20 @@ private extension ToastView {
                 .offset(y: -(1 - progress) * 120)
         } else {
             view
-                .opacity(progress)
-                .offset(y: -(1 - progress) * 80)
+                .scaleEffect(0.8 + (progress * 0.2))
+        }
+    }
+
+    @ViewBuilder
+    func applyDismissalEffects<V: View>(to view: V, progress: CGFloat) -> some View {
+        if #available(iOS 26.0, *) {
+            view
+                .scaleEffect(0.40 + (progress * 0.60))
+                .opacity(0.4 + (progress * 0.6))
+                .blur(radius: (1 - progress) * 8)
+                .offset(y: -(1 - progress) * 120)
+        } else {
+            view
         }
     }
 }
