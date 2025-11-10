@@ -105,7 +105,7 @@ public extension View {
     ) -> some View {
         self.modifier(
             ToastBackgroundContentModifier(alignment: .center, overrideType: .shapeStyle) {
-                Capsule()
+                Rectangle()
                     .fill(style)
             }
         )
@@ -124,17 +124,31 @@ struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
     }
     
     func body(content: Content) -> some View {
-        content
-            .background(alignment: alignment) {
-                background
-            }
-            .environment(\.toastBackgroundOverride, overrideType)
+        if overrideType == .shapeStyle {
+            content
+                .environment(\.toastBackgroundOverride, overrideType)
+                .preference(key: ToastShapeStyleBackgroundPreferenceKey.self, value: AnyView(background))
+        } else {
+            content
+                .background(alignment: alignment) {
+                    background
+                }
+                .environment(\.toastBackgroundOverride, overrideType)
+        }
+    }
+}
+
+struct ToastShapeStyleBackgroundPreferenceKey: PreferenceKey {
+    static var defaultValue: AnyView? = nil
+    static func reduce(value: inout AnyView?, nextValue: () -> AnyView?) {
+        value = nextValue() ?? value
     }
 }
 
 struct ToastBackgroundWrapper: ViewModifier {
     let configuration: ToastBackgroundConfiguration
     @Environment(\.toastBackgroundOverride) private var toastBackgroundOverride
+    @State private var shapeStyleBackground: AnyView? = nil
     
     func body(content: Content) -> some View {
         switch toastBackgroundOverride {
@@ -145,9 +159,17 @@ struct ToastBackgroundWrapper: ViewModifier {
             let shape = configuration.shape
             content
                 .padding(configuration.padding)
+                .background {
+                    if let shapeStyleBackground {
+                        shapeStyleBackground
+                    }
+                }
                 .clipShape(shape)
                 .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
                 .toastApplyShadowIfNeeded(configuration: configuration)
+                .onPreferenceChange(ToastShapeStyleBackgroundPreferenceKey.self) { value in
+                    shapeStyleBackground = value
+                }
             
         case .none:
             let shape = configuration.shape
