@@ -11,7 +11,6 @@ import UnionGestures
 
 struct ToastView<Content: View>: View {
     @Environment(ToastManager.self) private var toastManager
-    @Environment(\.toastBackgroundConfiguration) private var toastBackgroundConfiguration
 
     let content: () -> Content
     let previousContent: (() -> Content)?
@@ -403,7 +402,7 @@ struct ToastView<Content: View>: View {
     @ViewBuilder
     func decoratedContent<Inner: View>(_ view: Inner) -> some View {
         view
-            .modifier(ToastBackgroundWrapper(configuration: toastBackgroundConfiguration, applyHorizontalPadding: true))
+            .modifier(ConditionalToastBackgroundWrapper())
     }
 }
 

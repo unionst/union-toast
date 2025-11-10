@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-public struct ToastBackgroundConfiguration: Sendable {
+public struct ToastBackgroundConfiguration: Sendable, Equatable {
     public enum GlassEffectOption: Equatable, Sendable {
         case automatic
         case disabled
@@ -37,6 +37,12 @@ public struct ToastBackgroundConfiguration: Sendable {
     public var padding: EdgeInsets
     public var glassEffect: GlassEffectOption
     public var shadow: Shadow?
+    
+    public static func == (lhs: ToastBackgroundConfiguration, rhs: ToastBackgroundConfiguration) -> Bool {
+        lhs.padding == rhs.padding &&
+        lhs.glassEffect == rhs.glassEffect &&
+        lhs.shadow == rhs.shadow
+    }
     
     public init(
         style: AnyShapeStyle,
@@ -70,25 +76,27 @@ private struct ToastBackgroundConfigurationKey: EnvironmentKey {
     static let defaultValue: ToastBackgroundConfiguration = .default
 }
 
-enum ToastBackgroundOverride: Sendable {
+enum ToastBackgroundOverride: Sendable, Equatable {
     case none
-    case shapeStyle
+    case shapeStyle(ToastBackgroundConfiguration)
     case custom
 }
 
-private struct ToastBackgroundOverrideKey: EnvironmentKey {
+private struct ToastBackgroundOverridePreferenceKey: PreferenceKey {
     static let defaultValue: ToastBackgroundOverride = .none
+    
+    static func reduce(value: inout ToastBackgroundOverride, nextValue: () -> ToastBackgroundOverride) {
+        let next = nextValue()
+        if next != .none {
+            value = next
+        }
+    }
 }
 
 extension EnvironmentValues {
     var toastBackgroundConfiguration: ToastBackgroundConfiguration {
         get { self[ToastBackgroundConfigurationKey.self] }
         set { self[ToastBackgroundConfigurationKey.self] = newValue }
-    }
-    
-    var toastBackgroundOverride: ToastBackgroundOverride {
-        get { self[ToastBackgroundOverrideKey.self] }
-        set { self[ToastBackgroundOverrideKey.self] = newValue }
     }
 }
 
@@ -121,7 +129,7 @@ struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
             .background(alignment: alignment) {
                 background
             }
-            .environment(\.toastBackgroundOverride, .custom)
+            .preference(key: ToastBackgroundOverridePreferenceKey.self, value: .custom)
     }
 }
 
@@ -130,49 +138,56 @@ struct ToastBackgroundShapeStyleModifier<Style: ShapeStyle>: ViewModifier {
     let style: Style
     
     func body(content: Content) -> some View {
-        let shape = configuration.shape
+        let modifiedConfig = ToastBackgroundConfiguration(
+            style: AnyShapeStyle(style),
+            strokeStyle: configuration.strokeStyle,
+            shape: configuration.shape,
+            padding: configuration.padding,
+            glassEffect: configuration.glassEffect,
+            shadow: configuration.shadow
+        )
+        
         content
-            .padding(.horizontal, 16)
-            .background {
-                Rectangle()
-                    .fill(style)
-            }
-            .clipShape(shape)
-            .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
-            .toastApplyShadowIfNeeded(configuration: configuration)
-            .environment(\.toastBackgroundOverride, .shapeStyle)
+            .preference(key: ToastBackgroundOverridePreferenceKey.self, value: .shapeStyle(modifiedConfig))
     }
 }
 
-struct ToastBackgroundWrapper: ViewModifier {
-    let configuration: ToastBackgroundConfiguration
-    let applyHorizontalPadding: Bool
-    @Environment(\.toastBackgroundOverride) private var toastBackgroundOverride
+struct ConditionalToastBackgroundWrapper: ViewModifier {
+    @Environment(\.toastBackgroundConfiguration) private var defaultConfiguration
+    @State private var override: ToastBackgroundOverride = .none
     
     func body(content: Content) -> some View {
-        switch toastBackgroundOverride {
-        case .custom, .shapeStyle:
-            content
-            
-        case .none:
-            let shape = configuration.shape
-            
-            let base = content
-                .padding(configuration.padding)
-                .toastApplyBaseBackgroundIfNeeded(configuration: configuration, shape: shape)
-                .clipShape(shape)
-
-            let styled = base
-                .toastApplyGlassEffectIfNeeded(shape: shape, configuration: configuration)
-                .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
-                .toastApplyShadowIfNeeded(configuration: configuration)
-            
-            if applyHorizontalPadding {
-                styled.padding(.horizontal)
-            } else {
-                styled
+        Group {
+            switch override {
+            case .custom:
+                content
+                
+            case .shapeStyle(let config):
+                applyBackground(to: content, configuration: config)
+                
+            case .none:
+                applyBackground(to: content, configuration: defaultConfiguration)
             }
         }
+        .onPreferenceChange(ToastBackgroundOverridePreferenceKey.self) { value in
+            override = value
+        }
+    }
+    
+    @ViewBuilder
+    private func applyBackground(to content: Content, configuration: ToastBackgroundConfiguration) -> some View {
+        let shape = configuration.shape
+        
+        let base = content
+            .padding(configuration.padding)
+            .toastApplyBaseBackgroundIfNeeded(configuration: configuration, shape: shape)
+            .clipShape(shape)
+
+        base
+            .toastApplyGlassEffectIfNeeded(shape: shape, configuration: configuration)
+            .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
+            .toastApplyShadowIfNeeded(configuration: configuration)
+            .padding(.horizontal)
     }
 }
 
@@ -182,16 +197,7 @@ private extension View {
         configuration: ToastBackgroundConfiguration,
         shape: AnyShape
     ) -> some View {
-#if compiler(>=6.2)
-        if #available(iOS 26.0, *),
-           configuration.glassEffect != .disabled {
-            self
-        } else {
-            self.background(configuration.style, in: shape)
-        }
-#else
         self.background(configuration.style, in: shape)
-#endif
     }
 
     @ViewBuilder
