@@ -85,13 +85,15 @@ public extension View {
         self.modifier(ToastBackgroundContentModifier(alignment: alignment, background: content))
     }
     
-    func toastBackground<Style: ShapeStyle>(
-        _ style: Style
+    func toastBackground<S: ShapeStyle>(
+        _ style: S
     ) -> some View {
-        toastBackground {
-            Capsule()
-                .fill(style)
-        }
+        self.modifier(
+            ToastBackgroundContentModifier(alignment: .center) {
+                Capsule()
+                    .fill(style)
+            }
+        )
     }
 }
 
