@@ -70,10 +70,19 @@ private struct ToastBackgroundConfigurationKey: EnvironmentKey {
     static let defaultValue: ToastBackgroundConfiguration = .default
 }
 
+private struct HasCustomToastBackgroundKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
 extension EnvironmentValues {
     var toastBackgroundConfiguration: ToastBackgroundConfiguration {
         get { self[ToastBackgroundConfigurationKey.self] }
         set { self[ToastBackgroundConfigurationKey.self] = newValue }
+    }
+    
+    var hasCustomToastBackground: Bool {
+        get { self[HasCustomToastBackgroundKey.self] }
+        set { self[HasCustomToastBackgroundKey.self] = newValue }
     }
 }
 
@@ -111,24 +120,30 @@ struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
             .background(alignment: alignment) {
                 background
             }
+            .environment(\.hasCustomToastBackground, true)
     }
 }
 
 struct ToastBackgroundWrapper: ViewModifier {
     let configuration: ToastBackgroundConfiguration
+    @Environment(\.hasCustomToastBackground) private var hasCustomToastBackground
     
     func body(content: Content) -> some View {
-        let shape = configuration.shape
-        
-        let base = content
-            .padding(configuration.padding)
-            .toastApplyBaseBackgroundIfNeeded(configuration: configuration, shape: shape)
-            .clipShape(shape)
+        if hasCustomToastBackground {
+            content
+        } else {
+            let shape = configuration.shape
+            
+            let base = content
+                .padding(configuration.padding)
+                .toastApplyBaseBackgroundIfNeeded(configuration: configuration, shape: shape)
+                .clipShape(shape)
 
-        base
-            .toastApplyGlassEffectIfNeeded(shape: shape, configuration: configuration)
-            .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
-            .toastApplyShadowIfNeeded(configuration: configuration)
+            base
+                .toastApplyGlassEffectIfNeeded(shape: shape, configuration: configuration)
+                .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
+                .toastApplyShadowIfNeeded(configuration: configuration)
+        }
     }
 }
 
