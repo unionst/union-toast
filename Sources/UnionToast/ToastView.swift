@@ -294,12 +294,6 @@ struct ToastView<Content: View>: View {
             if isDisappearing {
                 applyDismissalEffects(
                     to: decoratedContent(content())
-                        .onAppear {
-                            if let replacementID = replacementPresentationID,
-                               replacementID == toastManager.replacementPresentationID {
-                                startReplacementAnimationIfNeeded(for: replacementID)
-                            }
-                        }
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.height
                         } action: { value in
@@ -441,7 +435,7 @@ private extension ToastView {
             }
 
             if incomingDelay > 0 {
-                try? await Task.sleep(for: .milliseconds(Int(incomingDelay * 1000)))
+                try? await Task.sleep(for: .seconds(incomingDelay))
             }
             if Task.isCancelled { return }
 
@@ -462,15 +456,12 @@ private extension ToastView {
                 animationProgress = 1
             }
 
-            try? await Task.sleep(for: .milliseconds(Int(incomingDuration * 1000)))
+            let totalDuration = max(outgoingDuration, incomingDelay + incomingDuration)
+            // Add extra time for spring to fully settle (springs overshoot beyond their duration)
+            try? await Task.sleep(for: .seconds(totalDuration) + .milliseconds(350))
             if Task.isCancelled { return }
 
             replacementOutgoingProgress = 0
-
-            let totalDuration = max(outgoingDuration, incomingDelay + incomingDuration)
-            // Add extra time for spring to fully settle (springs overshoot beyond their duration)
-            try? await Task.sleep(for: .milliseconds(Int(totalDuration * 1000) + 350))
-            if Task.isCancelled { return }
 
             toastManager.completeReplacement()
             resetReplacementAnimationState()

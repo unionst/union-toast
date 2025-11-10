@@ -16,11 +16,12 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     @State private var hasConfiguredOverlay = false
     @State private var sceneDelegate: ToastSceneDelegate?
     @State private var toastManager: ToastManager?
-    @State private var presentationToItemID: [UUID: Item.ID] = [:]
+    @State private var presentationToItemID: [(presentationID: UUID, itemID: Item.ID)] = []
     @State private var pendingShowTask: Task<Void, Never>?
     @State private var lastPresentedItem: Item?
     @State private var pendingReplacementItem: Item?
     @State private var replacementTransitionTask: Task<Void, Never>?
+    @State private var isHandlingChange = false
 
     private let maxTrackedPresentations = 100
 
@@ -35,6 +36,10 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     }
 
     private func handleItemChange(_ newItem: Item?) {
+        guard !isHandlingChange else { return }
+        isHandlingChange = true
+        defer { isHandlingChange = false }
+
         if !hasConfiguredOverlay {
             configureToastOverlay()
         }
@@ -69,7 +74,22 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             }
         }
 
-        if toastManager == nil {
+        if let manager = toastManager {
+            if manager.isShowing {
+                beginSequentialReplacement(for: newItem, using: manager, delegate: delegate)
+                return
+            }
+
+            replacementTransitionTask?.cancel()
+            replacementTransitionTask = nil
+            pendingReplacementItem = nil
+
+            delegate.updateOverlay {
+                toastContent(newItem)
+            }
+            lastPresentedItem = newItem
+            scheduleShow(for: newItem, using: manager)
+        } else {
             let manager = delegate.addOverlay(
                 dismissDelay: dismissDelay,
                 onDismiss: onDismissHandler
@@ -79,35 +99,17 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             toastManager = manager
             lastPresentedItem = newItem
             scheduleShow(for: newItem, using: manager)
-            return
         }
-
-        guard let manager = toastManager else {
-            return
-        }
-
-        if manager.isShowing {
-            beginSequentialReplacement(for: newItem, using: manager, delegate: delegate)
-            return
-        }
-
-        replacementTransitionTask?.cancel()
-        replacementTransitionTask = nil
-        pendingReplacementItem = nil
-
-        delegate.updateOverlay {
-            toastContent(newItem)
-        }
-        lastPresentedItem = newItem
-        scheduleShow(for: newItem, using: manager)
     }
 
     @discardableResult
     private func clearBindingIfNeeded(for presentationID: UUID?) -> Bool {
         guard let presentationID,
-              let dismissedItemID = presentationToItemID.removeValue(forKey: presentationID) else {
+              let index = presentationToItemID.firstIndex(where: { $0.presentationID == presentationID }) else {
             return false
         }
+        
+        let dismissedItemID = presentationToItemID.remove(at: index).itemID
 
         if item?.id == dismissedItemID {
             item = nil
@@ -128,7 +130,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             if Task.isCancelled { return }
             manager.show()
             if Task.isCancelled { return }
-            presentationToItemID[manager.presentationID] = item.id
+            presentationToItemID.append((presentationID: manager.presentationID, itemID: item.id))
             if pendingReplacementItem?.id == item.id {
                 pendingReplacementItem = nil
             }
@@ -137,13 +139,13 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     }
 
     private func cancelPendingReplacements(excluding activeID: UUID?) {
-        let idsToCancel = presentationToItemID.keys.compactMap { id -> UUID? in
-            guard let activeID else { return id }
-            return id == activeID ? nil : id
+        let entriesToCancel = presentationToItemID.filter { entry in
+            guard let activeID else { return true }
+            return entry.presentationID != activeID
         }
 
-        for id in idsToCancel {
-            if clearBindingIfNeeded(for: id) {
+        for entry in entriesToCancel {
+            if clearBindingIfNeeded(for: entry.presentationID) {
                 onDismiss?()
             }
         }
@@ -153,9 +155,8 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         guard presentationToItemID.count > maxTrackedPresentations else { return }
 
         // Remove oldest 50% when limit reached
-        let excess = presentationToItemID.count - (maxTrackedPresentations / 2)
-        let oldestKeys = Array(presentationToItemID.keys.prefix(excess))
-        oldestKeys.forEach { presentationToItemID.removeValue(forKey: $0) }
+        let keepCount = maxTrackedPresentations / 2
+        presentationToItemID.removeFirst(presentationToItemID.count - keepCount)
     }
 
     private func configureToastOverlay() {
@@ -202,15 +203,18 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         // Trigger simultaneous replacement animation
         guard let replacementID = manager.beginReplacement() else { return }
 
+        // Capture item ID at task creation to avoid race condition
+        let capturedItemID = newItem.id
+
         replacementTransitionTask = Task { @MainActor in
             defer {
-                if pendingReplacementItem?.id == newItem.id {
+                if pendingReplacementItem?.id == capturedItemID {
                     pendingReplacementItem = nil
                 }
                 replacementTransitionTask = nil
             }
 
-            guard pendingReplacementItem?.id == newItem.id else { return }
+            guard pendingReplacementItem?.id == capturedItemID else { return }
 
             // Update content with previous content for simultaneous animation
             delegate.updateOverlayWithPrevious(
@@ -227,7 +231,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
                 replacementID: replacementID
             )
             lastPresentedItem = newItem
-            presentationToItemID[replacementID] = newItem.id
+            presentationToItemID.append((presentationID: replacementID, itemID: newItem.id))
         }
     }
 

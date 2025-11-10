@@ -15,7 +15,7 @@ class ToastSceneDelegate: NSObject {
     var overlayWindow: PassThroughWindow?
     var toastManager: ToastManager?
     var hostingController: UIViewController?
-    
+
     func configure(with windowScene: UIWindowScene) {
         self.windowScene = windowScene
     }

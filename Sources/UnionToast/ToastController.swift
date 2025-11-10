@@ -17,7 +17,7 @@ public final class ToastController: NSObject {
     private var toastManager: ToastManager?
     private var lastContent: (() -> AnyView)?
     private var pendingShowTask: Task<Void, Never>?
-    private var presentationDismissHandlers: [UUID: () -> Void] = [:]
+    private var presentationDismissHandlers: [(id: UUID, handler: () -> Void)] = []
 
     private let maxTrackedPresentations = 100
 
@@ -91,11 +91,11 @@ public final class ToastController: NSObject {
             return
         }
 
-        flushPendingDismissHandlers(preserving: manager.isShowing ? manager.presentationID : nil)
-
         if manager.isShowing {
             let previousContent = lastContent
             let replacementID = manager.beginReplacement()
+
+            flushPendingDismissHandlers(preserving: replacementID)
 
             sceneDelegate?.updateOverlay(
                 previousContent: previousContent,
@@ -105,11 +105,13 @@ public final class ToastController: NSObject {
             }
 
             if let replacementID, let onDismiss {
-                presentationDismissHandlers[replacementID] = onDismiss
+                presentationDismissHandlers.append((id: replacementID, handler: onDismiss))
             }
 
             lastContent = wrappedContent
         } else {
+            flushPendingDismissHandlers(preserving: nil)
+
             sceneDelegate?.updateOverlay {
                 wrappedContent()
             }
@@ -208,7 +210,7 @@ private extension ToastController {
             flushPendingDismissHandlers(preserving: manager.presentationID)
 
             if let onDismiss {
-                presentationDismissHandlers[manager.presentationID] = onDismiss
+                presentationDismissHandlers.append((id: manager.presentationID, handler: onDismiss))
             }
 
             pendingShowTask = nil
@@ -219,7 +221,8 @@ private extension ToastController {
         pendingShowTask?.cancel()
         pendingShowTask = nil
 
-        if let handler = presentationDismissHandlers.removeValue(forKey: presentationID) {
+        if let index = presentationDismissHandlers.firstIndex(where: { $0.id == presentationID }) {
+            let handler = presentationDismissHandlers.remove(at: index).handler
             handler()
         }
 
@@ -229,15 +232,18 @@ private extension ToastController {
     }
 
     func flushPendingDismissHandlers(preserving activeID: UUID?) {
-        let idsToFlush = presentationDismissHandlers.keys.compactMap { id -> UUID? in
-            guard let activeID else { return id }
-            return id == activeID ? nil : id
+        let handlersToFlush = presentationDismissHandlers.filter { entry in
+            guard let activeID else { return true }
+            return entry.id != activeID
         }
 
-        for id in idsToFlush {
-            if let handler = presentationDismissHandlers.removeValue(forKey: id) {
-                handler()
-            }
+        for entry in handlersToFlush {
+            entry.handler()
+        }
+
+        presentationDismissHandlers.removeAll { entry in
+            guard let activeID else { return true }
+            return entry.id != activeID
         }
     }
 
@@ -245,8 +251,7 @@ private extension ToastController {
         guard presentationDismissHandlers.count > maxTrackedPresentations else { return }
 
         // Remove oldest 50% when limit reached
-        let excess = presentationDismissHandlers.count - (maxTrackedPresentations / 2)
-        let oldestKeys = Array(presentationDismissHandlers.keys.prefix(excess))
-        oldestKeys.forEach { presentationDismissHandlers.removeValue(forKey: $0) }
+        let keepCount = maxTrackedPresentations / 2
+        presentationDismissHandlers.removeFirst(presentationDismissHandlers.count - keepCount)
     }
 }
