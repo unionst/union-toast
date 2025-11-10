@@ -315,6 +315,11 @@ struct ToastView<Content: View>: View {
                                replacementID == toastManager.replacementPresentationID {
                                 startReplacementAnimationIfNeeded(for: replacementID)
                             }
+                        }
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            proxy.size.height
+                        } action: { value in
+                            toastManager.contentHeight = value
                         },
                     progress: effectiveProgress
                 )

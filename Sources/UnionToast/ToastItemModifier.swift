@@ -22,6 +22,8 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     @State private var pendingReplacementItem: Item?
     @State private var replacementTransitionTask: Task<Void, Never>?
 
+    private let maxTrackedPresentations = 100
+
     func body(content: Content) -> some View {
         content
             .onAppear {
@@ -36,6 +38,8 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         if !hasConfiguredOverlay {
             configureToastOverlay()
         }
+
+        cleanupOldPresentationsIfNeeded()
 
         guard let delegate = sceneDelegate else {
             return
@@ -144,6 +148,16 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             }
         }
     }
+
+    private func cleanupOldPresentationsIfNeeded() {
+        guard presentationToItemID.count > maxTrackedPresentations else { return }
+
+        // Remove oldest 50% when limit reached
+        let excess = presentationToItemID.count - (maxTrackedPresentations / 2)
+        let oldestKeys = Array(presentationToItemID.keys.prefix(excess))
+        oldestKeys.forEach { presentationToItemID.removeValue(forKey: $0) }
+    }
+
     private func configureToastOverlay() {
         guard !hasConfiguredOverlay else { return }
         hasConfiguredOverlay = true
@@ -170,13 +184,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
                 .first
         }
 
-        // Method 4: Try to get from key window (deprecated but might work)
-        if windowScene == nil {
-            windowScene = UIApplication.shared.windows.first?.windowScene
-        }
-
         guard let scene = windowScene else {
-            print("🍞 ToastItemModifier: Couldn't find window scene")
             return
         }
 

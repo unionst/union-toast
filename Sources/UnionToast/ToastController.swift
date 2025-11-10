@@ -19,6 +19,8 @@ public final class ToastController: NSObject {
     private var pendingShowTask: Task<Void, Never>?
     private var presentationDismissHandlers: [UUID: () -> Void] = [:]
 
+    private let maxTrackedPresentations = 100
+
     private override init() {
         super.init()
     }
@@ -40,6 +42,8 @@ public final class ToastController: NSObject {
 
     public func show<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
         guard toastManager?.isShowing != true else { return }
+
+        cleanupOldPresentationsIfNeeded()
 
         let wrappedContent: () -> AnyView = {
             AnyView(content())
@@ -74,6 +78,7 @@ public final class ToastController: NSObject {
         @ViewBuilder content: @escaping (Item) -> ToastContent
     ) {
         pendingShowTask?.cancel()
+        cleanupOldPresentationsIfNeeded()
 
         let wrappedContent: () -> AnyView = {
             AnyView(content(item))
@@ -234,5 +239,14 @@ private extension ToastController {
                 handler()
             }
         }
+    }
+
+    private func cleanupOldPresentationsIfNeeded() {
+        guard presentationDismissHandlers.count > maxTrackedPresentations else { return }
+
+        // Remove oldest 50% when limit reached
+        let excess = presentationDismissHandlers.count - (maxTrackedPresentations / 2)
+        let oldestKeys = Array(presentationDismissHandlers.keys.prefix(excess))
+        oldestKeys.forEach { presentationDismissHandlers.removeValue(forKey: $0) }
     }
 }
