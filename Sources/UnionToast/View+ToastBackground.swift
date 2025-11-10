@@ -72,7 +72,7 @@ private struct ToastBackgroundConfigurationKey: EnvironmentKey {
 
 enum ToastBackgroundOverride {
     case none
-    case shapeStyle
+    case shapeStyle(AnyView)
     case custom
 }
 
@@ -97,79 +97,54 @@ public extension View {
         alignment: Alignment = .center,
         @ViewBuilder content: () -> V
     ) -> some View {
-        self.modifier(ToastBackgroundContentModifier(alignment: alignment, overrideType: .custom, background: content))
+        self.modifier(ToastBackgroundContentModifier(alignment: alignment, background: content))
     }
     
     func toastBackground<S: ShapeStyle>(
         _ style: S
     ) -> some View {
-        self.modifier(
-            ToastBackgroundContentModifier(alignment: .center, overrideType: .shapeStyle) {
-                Rectangle()
-                    .fill(style)
-            }
-        )
+        let bg = AnyView(Rectangle().fill(style))
+        return self.environment(\.toastBackgroundOverride, .shapeStyle(bg))
     }
 }
 
 struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
     let alignment: Alignment
-    let overrideType: ToastBackgroundOverride
     let background: Background
     
-    init(alignment: Alignment, overrideType: ToastBackgroundOverride, @ViewBuilder background: () -> Background) {
+    init(alignment: Alignment, @ViewBuilder background: () -> Background) {
         self.alignment = alignment
-        self.overrideType = overrideType
         self.background = background()
     }
     
     func body(content: Content) -> some View {
-        if overrideType == .shapeStyle {
-            content
-                .environment(\.toastBackgroundOverride, overrideType)
-                .preference(key: ToastShapeStyleBackgroundPreferenceKey.self, value: AnyView(background))
-        } else {
-            content
-                .background(alignment: alignment) {
-                    background
-                }
-                .environment(\.toastBackgroundOverride, overrideType)
-        }
-    }
-}
-
-struct ToastShapeStyleBackgroundPreferenceKey: PreferenceKey {
-    static var defaultValue: AnyView? = nil
-    static func reduce(value: inout AnyView?, nextValue: () -> AnyView?) {
-        value = nextValue() ?? value
+        content
+            .background(alignment: alignment) {
+                background
+            }
+            .environment(\.toastBackgroundOverride, .custom)
     }
 }
 
 struct ToastBackgroundWrapper: ViewModifier {
     let configuration: ToastBackgroundConfiguration
     @Environment(\.toastBackgroundOverride) private var toastBackgroundOverride
-    @State private var shapeStyleBackground: AnyView? = nil
     
     func body(content: Content) -> some View {
         switch toastBackgroundOverride {
         case .custom:
             content
             
-        case .shapeStyle:
+        case .shapeStyle(let background):
             let shape = configuration.shape
             content
                 .padding(configuration.padding)
                 .background {
-                    if let shapeStyleBackground {
-                        shapeStyleBackground
-                    }
+                    background
                 }
                 .clipShape(shape)
                 .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
                 .toastApplyShadowIfNeeded(configuration: configuration)
-                .onPreferenceChange(ToastShapeStyleBackgroundPreferenceKey.self) { value in
-                    shapeStyleBackground = value
-                }
             
         case .none:
             let shape = configuration.shape
