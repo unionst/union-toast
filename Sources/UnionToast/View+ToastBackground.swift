@@ -70,8 +70,14 @@ private struct ToastBackgroundConfigurationKey: EnvironmentKey {
     static let defaultValue: ToastBackgroundConfiguration = .default
 }
 
-private struct HasCustomToastBackgroundKey: EnvironmentKey {
-    static let defaultValue: Bool = false
+enum ToastBackgroundOverride {
+    case none
+    case shapeStyle
+    case custom
+}
+
+private struct ToastBackgroundOverrideKey: EnvironmentKey {
+    static let defaultValue: ToastBackgroundOverride = .none
 }
 
 extension EnvironmentValues {
@@ -80,9 +86,9 @@ extension EnvironmentValues {
         set { self[ToastBackgroundConfigurationKey.self] = newValue }
     }
     
-    var hasCustomToastBackground: Bool {
-        get { self[HasCustomToastBackgroundKey.self] }
-        set { self[HasCustomToastBackgroundKey.self] = newValue }
+    var toastBackgroundOverride: ToastBackgroundOverride {
+        get { self[ToastBackgroundOverrideKey.self] }
+        set { self[ToastBackgroundOverrideKey.self] = newValue }
     }
 }
 
@@ -91,14 +97,14 @@ public extension View {
         alignment: Alignment = .center,
         @ViewBuilder content: () -> V
     ) -> some View {
-        self.modifier(ToastBackgroundContentModifier(alignment: alignment, background: content))
+        self.modifier(ToastBackgroundContentModifier(alignment: alignment, overrideType: .custom, background: content))
     }
     
     func toastBackground<S: ShapeStyle>(
         _ style: S
     ) -> some View {
         self.modifier(
-            ToastBackgroundContentModifier(alignment: .center) {
+            ToastBackgroundContentModifier(alignment: .center, overrideType: .shapeStyle) {
                 Capsule()
                     .fill(style)
             }
@@ -108,10 +114,12 @@ public extension View {
 
 struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
     let alignment: Alignment
+    let overrideType: ToastBackgroundOverride
     let background: Background
     
-    init(alignment: Alignment, @ViewBuilder background: () -> Background) {
+    init(alignment: Alignment, overrideType: ToastBackgroundOverride, @ViewBuilder background: () -> Background) {
         self.alignment = alignment
+        self.overrideType = overrideType
         self.background = background()
     }
     
@@ -120,18 +128,28 @@ struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
             .background(alignment: alignment) {
                 background
             }
-            .environment(\.hasCustomToastBackground, true)
+            .environment(\.toastBackgroundOverride, overrideType)
     }
 }
 
 struct ToastBackgroundWrapper: ViewModifier {
     let configuration: ToastBackgroundConfiguration
-    @Environment(\.hasCustomToastBackground) private var hasCustomToastBackground
+    @Environment(\.toastBackgroundOverride) private var toastBackgroundOverride
     
     func body(content: Content) -> some View {
-        if hasCustomToastBackground {
+        switch toastBackgroundOverride {
+        case .custom:
             content
-        } else {
+            
+        case .shapeStyle:
+            let shape = configuration.shape
+            content
+                .padding(configuration.padding)
+                .clipShape(shape)
+                .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
+                .toastApplyShadowIfNeeded(configuration: configuration)
+            
+        case .none:
             let shape = configuration.shape
             
             let base = content
