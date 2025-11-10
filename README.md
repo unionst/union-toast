@@ -157,7 +157,7 @@ On iOS 26 the default `glassEffect` resolves to `.regular`, so the toast card 
 
 - `View.toast(isPresented:onDismiss:dismissDelay:content:)`
 - `View.toast(item:onDismiss:dismissDelay:content:)` (`Item: Identifiable & Equatable`)
-- `View.toastBackground(_:shape:glassEffect:stroke:padding:shadow:)` and overloads for common `ShapeStyle` combinations
+- `View.toastBackground(alignment:content:)` and `View.toastBackground(_:)` for `ShapeStyle` backgrounds
 - `ToastController.show(dismissDelay:content:)`
 - `ToastController.forceShow(dismissDelay:content:)`
 - `ToastController.show(item:dismissDelay:onDismiss:content:)`

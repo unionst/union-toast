@@ -78,59 +78,37 @@ extension EnvironmentValues {
 }
 
 public extension View {
-    func toastBackground(
-        _ style: AnyShapeStyle,
-        shape: AnyShape = AnyShape(RoundedRectangle(cornerRadius: 24, style: .continuous)),
-        glassEffect: ToastBackgroundConfiguration.GlassEffectOption = .automatic,
-        stroke: AnyShapeStyle? = nil,
-        padding: EdgeInsets? = nil,
-        shadow: ToastBackgroundConfiguration.Shadow? = ToastBackgroundConfiguration.default.shadow
+    func toastBackground<V: View>(
+        alignment: Alignment = .center,
+        @ViewBuilder content: () -> V
     ) -> some View {
-        var configuration = ToastBackgroundConfiguration.default
-        configuration.style = style
-        configuration.shape = shape
-        configuration.glassEffect = glassEffect
-        configuration.strokeStyle = stroke ?? configuration.strokeStyle
-        if let padding {
-            configuration.padding = padding
-        }
-        configuration.shadow = shadow
-        return environment(\.toastBackgroundConfiguration, configuration)
-    }
-    
-    func toastBackground<Style: ShapeStyle, ShapeType: Shape>(
-        _ style: Style,
-        shape: ShapeType,
-        glassEffect: ToastBackgroundConfiguration.GlassEffectOption = .automatic,
-        stroke: Style? = nil,
-        padding: EdgeInsets? = nil,
-        shadow: ToastBackgroundConfiguration.Shadow? = ToastBackgroundConfiguration.default.shadow
-    ) -> some View {
-        toastBackground(
-            AnyShapeStyle(style),
-            shape: AnyShape(shape),
-            glassEffect: glassEffect,
-            stroke: stroke.map(AnyShapeStyle.init),
-            padding: padding,
-            shadow: shadow
-        )
+        self.modifier(ToastBackgroundContentModifier(alignment: alignment, background: content))
     }
     
     func toastBackground<Style: ShapeStyle>(
-        _ style: Style,
-        glassEffect: ToastBackgroundConfiguration.GlassEffectOption = .automatic,
-        stroke: Style? = nil,
-        padding: EdgeInsets? = nil,
-        shadow: ToastBackgroundConfiguration.Shadow? = ToastBackgroundConfiguration.default.shadow
+        _ style: Style
     ) -> some View {
-        toastBackground(
-            AnyShapeStyle(style),
-            shape: AnyShape(RoundedRectangle(cornerRadius: 24, style: .continuous)),
-            glassEffect: glassEffect,
-            stroke: stroke.map(AnyShapeStyle.init),
-            padding: padding,
-            shadow: shadow
-        )
+        toastBackground {
+            Capsule()
+                .fill(style)
+        }
+    }
+}
+
+struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
+    let alignment: Alignment
+    let background: Background
+    
+    init(alignment: Alignment, @ViewBuilder background: () -> Background) {
+        self.alignment = alignment
+        self.background = background()
+    }
+    
+    func body(content: Content) -> some View {
+        content
+            .background(alignment: alignment) {
+                background
+            }
     }
 }
 
@@ -141,7 +119,6 @@ struct ToastBackgroundWrapper: ViewModifier {
         let shape = configuration.shape
         
         let base = content
-            .frame(maxWidth: .infinity)
             .padding(configuration.padding)
             .toastApplyBaseBackgroundIfNeeded(configuration: configuration, shape: shape)
             .clipShape(shape)
