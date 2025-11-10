@@ -41,7 +41,7 @@ public struct ToastBackgroundConfiguration: Sendable {
     public init(
         style: AnyShapeStyle,
         strokeStyle: AnyShapeStyle? = nil,
-        shape: AnyShape = AnyShape(RoundedRectangle(cornerRadius: 24, style: .continuous)),
+        shape: AnyShape = AnyShape(Capsule()),
         padding: EdgeInsets = EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16),
         glassEffect: GlassEffectOption = .automatic,
         shadow: Shadow? = Shadow(
