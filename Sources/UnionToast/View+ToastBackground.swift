@@ -80,10 +80,6 @@ private struct ToastBackgroundOverrideKey: EnvironmentKey {
     static let defaultValue: ToastBackgroundOverride = .none
 }
 
-private struct ToastShapeStyleBackgroundKey: EnvironmentKey {
-    static let defaultValue: AnyShapeStyle? = nil
-}
-
 extension EnvironmentValues {
     var toastBackgroundConfiguration: ToastBackgroundConfiguration {
         get { self[ToastBackgroundConfigurationKey.self] }
@@ -93,11 +89,6 @@ extension EnvironmentValues {
     var toastBackgroundOverride: ToastBackgroundOverride {
         get { self[ToastBackgroundOverrideKey.self] }
         set { self[ToastBackgroundOverrideKey.self] = newValue }
-    }
-    
-    var toastShapeStyleBackground: AnyShapeStyle? {
-        get { self[ToastShapeStyleBackgroundKey.self] }
-        set { self[ToastShapeStyleBackgroundKey.self] = newValue }
     }
 }
 
@@ -135,38 +126,32 @@ struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
 }
 
 struct ToastBackgroundShapeStyleModifier<Style: ShapeStyle>: ViewModifier {
+    @Environment(\.toastBackgroundConfiguration) private var configuration
     let style: Style
     
     func body(content: Content) -> some View {
+        let shape = configuration.shape
         content
+            .padding(configuration.padding)
+            .background {
+                Rectangle()
+                    .fill(style)
+            }
+            .clipShape(shape)
+            .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
+            .toastApplyShadowIfNeeded(configuration: configuration)
             .environment(\.toastBackgroundOverride, .shapeStyle)
-            .environment(\.toastShapeStyleBackground, AnyShapeStyle(style))
     }
 }
 
 struct ToastBackgroundWrapper: ViewModifier {
     let configuration: ToastBackgroundConfiguration
     @Environment(\.toastBackgroundOverride) private var toastBackgroundOverride
-    @Environment(\.toastShapeStyleBackground) private var toastShapeStyleBackground
     
     func body(content: Content) -> some View {
         switch toastBackgroundOverride {
-        case .custom:
+        case .custom, .shapeStyle:
             content
-            
-        case .shapeStyle:
-            let shape = configuration.shape
-            content
-                .padding(configuration.padding)
-                .background {
-                    if let style = toastShapeStyleBackground {
-                        Rectangle()
-                            .fill(style)
-                    }
-                }
-                .clipShape(shape)
-                .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
-                .toastApplyShadowIfNeeded(configuration: configuration)
             
         case .none:
             let shape = configuration.shape
