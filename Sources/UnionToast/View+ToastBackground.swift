@@ -132,7 +132,7 @@ struct ToastBackgroundShapeStyleModifier<Style: ShapeStyle>: ViewModifier {
     func body(content: Content) -> some View {
         let shape = configuration.shape
         content
-            .padding(configuration.padding)
+            .padding(.horizontal, 16)
             .background {
                 Rectangle()
                     .fill(style)
@@ -146,6 +146,7 @@ struct ToastBackgroundShapeStyleModifier<Style: ShapeStyle>: ViewModifier {
 
 struct ToastBackgroundWrapper: ViewModifier {
     let configuration: ToastBackgroundConfiguration
+    let applyHorizontalPadding: Bool
     @Environment(\.toastBackgroundOverride) private var toastBackgroundOverride
     
     func body(content: Content) -> some View {
@@ -161,10 +162,16 @@ struct ToastBackgroundWrapper: ViewModifier {
                 .toastApplyBaseBackgroundIfNeeded(configuration: configuration, shape: shape)
                 .clipShape(shape)
 
-            base
+            let styled = base
                 .toastApplyGlassEffectIfNeeded(shape: shape, configuration: configuration)
                 .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
                 .toastApplyShadowIfNeeded(configuration: configuration)
+            
+            if applyHorizontalPadding {
+                styled.padding(.horizontal)
+            } else {
+                styled
+            }
         }
     }
 }

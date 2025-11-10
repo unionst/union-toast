@@ -403,8 +403,7 @@ struct ToastView<Content: View>: View {
     @ViewBuilder
     func decoratedContent<Inner: View>(_ view: Inner) -> some View {
         view
-            .modifier(ToastBackgroundWrapper(configuration: toastBackgroundConfiguration))
-            .padding(.horizontal)
+            .modifier(ToastBackgroundWrapper(configuration: toastBackgroundConfiguration, applyHorizontalPadding: true))
     }
 }
 
