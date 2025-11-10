@@ -279,6 +279,8 @@ struct ToastView<Content: View>: View {
     @ViewBuilder
     func toastContent(proxy outerProxy: GeometryProxy) -> some View {
         let effectiveProgress = replacementPhase == .idle ? animationProgress : replacementIncomingProgress
+        let isDisappearing = replacementPhase == .idle && !toastManager.isShowing
+        let isReplacementIncoming = replacementPhase != .idle
 
         ZStack(alignment: .top) {
             if displayPreviousContent, let previousContent {
@@ -289,21 +291,50 @@ struct ToastView<Content: View>: View {
                     .allowsHitTesting(false)
             }
 
-            applyIncomingEffects(
-                to: decoratedContent(content())
-                    .onAppear {
-                        if let replacementID = replacementPresentationID,
-                           replacementID == toastManager.replacementPresentationID {
-                            startReplacementAnimationIfNeeded(for: replacementID)
+            if isDisappearing {
+                applyOutgoingEffects(
+                    to: decoratedContent(content())
+                        .onAppear {
+                            if let replacementID = replacementPresentationID,
+                               replacementID == toastManager.replacementPresentationID {
+                                startReplacementAnimationIfNeeded(for: replacementID)
+                            }
                         }
-                    }
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.height
-                    } action: { value in
-                        toastManager.contentHeight = value
-                    },
-                progress: effectiveProgress
-            )
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            proxy.size.height
+                        } action: { value in
+                            toastManager.contentHeight = value
+                        },
+                    progress: effectiveProgress
+                )
+            } else if isReplacementIncoming {
+                applyReplacementIncomingEffects(
+                    to: decoratedContent(content())
+                        .onAppear {
+                            if let replacementID = replacementPresentationID,
+                               replacementID == toastManager.replacementPresentationID {
+                                startReplacementAnimationIfNeeded(for: replacementID)
+                            }
+                        },
+                    progress: effectiveProgress
+                )
+            } else {
+                applyIncomingEffects(
+                    to: decoratedContent(content())
+                        .onAppear {
+                            if let replacementID = replacementPresentationID,
+                               replacementID == toastManager.replacementPresentationID {
+                                startReplacementAnimationIfNeeded(for: replacementID)
+                            }
+                        }
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            proxy.size.height
+                        } action: { value in
+                            toastManager.contentHeight = value
+                        },
+                    progress: effectiveProgress
+                )
+            }
         }
     }
 
@@ -399,7 +430,7 @@ private extension ToastView {
         let incomingDuration = replacementIncomingDuration
 
         replacementAnimationTask = Task { @MainActor in
-            let outgoingAnimation = Animation.easeInOut(duration: outgoingDuration)
+            let outgoingAnimation = Animation.easeOut(duration: outgoingDuration)
             withAnimation(outgoingAnimation) {
                 replacementOutgoingProgress = 0
             }
@@ -422,7 +453,8 @@ private extension ToastView {
             }
 
             let totalDuration = max(outgoingDuration, incomingDelay + incomingDuration)
-            try? await Task.sleep(for: .milliseconds(Int(totalDuration * 1000)))
+            // Add extra time for spring to fully settle (springs overshoot beyond their duration)
+            try? await Task.sleep(for: .milliseconds(Int(totalDuration * 1000) + 350))
             if Task.isCancelled { return }
 
             toastManager.completeReplacement()
@@ -446,17 +478,17 @@ private extension ToastView {
 
     var replacementOutgoingDuration: Double {
         if #available(iOS 26.0, *) {
-            return 0.32
+            return 0.38
         } else {
-            return 0.22
+            return 0.3
         }
     }
 
     var replacementIncomingDuration: Double {
         if #available(iOS 26.0, *) {
-            return 0.36
+            return 0.32
         } else {
-            return 0.26
+            return 0.24
         }
     }
 
@@ -472,7 +504,7 @@ private extension ToastView {
     func applyIncomingEffects<V: View>(to view: V, progress: CGFloat) -> some View {
         if #available(iOS 26.0, *) {
             view
-                .scaleEffect(0.72 + (progress * 0.28))
+                .scaleEffect(0.40 + (progress * 0.60))
                 .opacity(0.4 + (progress * 0.6))
                 .blur(radius: (1 - progress) * 8)
                 .offset(y: (1 - progress) * 24)
@@ -484,17 +516,32 @@ private extension ToastView {
     }
 
     @ViewBuilder
-    func applyOutgoingEffects<V: View>(to view: V, progress: CGFloat) -> some View {
+    func applyReplacementIncomingEffects<V: View>(to view: V, progress: CGFloat) -> some View {
         if #available(iOS 26.0, *) {
             view
-                .scaleEffect(0.72 + (progress * 0.28))
+                .scaleEffect(0.40 + (progress * 0.60))
                 .opacity(0.4 + (progress * 0.6))
                 .blur(radius: (1 - progress) * 8)
-                .offset(y: -(1 - progress) * 28)
+                .offset(y: -(1 - progress) * 120)
         } else {
             view
                 .opacity(progress)
-                .offset(y: -(1 - progress) * 12)
+                .offset(y: -(1 - progress) * 80)
+        }
+    }
+
+    @ViewBuilder
+    func applyOutgoingEffects<V: View>(to view: V, progress: CGFloat) -> some View {
+        if #available(iOS 26.0, *) {
+            view
+                .scaleEffect(0.40 + (progress * 0.60))
+                .opacity(0.4 + (progress * 0.6))
+                .blur(radius: (1 - progress) * 8)
+                .offset(y: -(1 - progress) * 120)
+        } else {
+            view
+                .opacity(progress)
+                .offset(y: -(1 - progress) * 80)
         }
     }
 }

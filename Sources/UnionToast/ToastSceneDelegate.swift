@@ -89,7 +89,35 @@ class ToastSceneDelegate: NSObject {
         hosting.view.setNeedsLayout()
         hosting.view.layoutIfNeeded()
     }
-    
+
+    func updateOverlayWithPrevious<Content: View>(
+        previousContent: @escaping () -> Content,
+        newContent: @escaping () -> Content,
+        replacementID: UUID
+    ) {
+        guard let manager = toastManager,
+              let overlayWindow = overlayWindow else {
+            return
+        }
+
+        let hosting = UIHostingController(
+            rootView: ToastOverlayView(
+                manager: manager,
+                previousContent: previousContent,
+                replacementPresentationID: replacementID
+            ) {
+                newContent()
+            }
+        )
+        hosting.view.backgroundColor = .clear
+
+        overlayWindow.rootViewController = hosting
+        self.hostingController = hosting
+
+        hosting.view.setNeedsLayout()
+        hosting.view.layoutIfNeeded()
+    }
+
     func removeOverlay() {
         overlayWindow?.isHidden = true
         overlayWindow = nil

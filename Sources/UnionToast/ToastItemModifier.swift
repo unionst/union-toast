@@ -191,6 +191,9 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
         replacementTransitionTask?.cancel()
         replacementTransitionTask = nil
 
+        // Trigger simultaneous replacement animation
+        guard let replacementID = manager.beginReplacement() else { return }
+
         replacementTransitionTask = Task { @MainActor in
             defer {
                 if pendingReplacementItem?.id == newItem.id {
@@ -199,24 +202,24 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
                 replacementTransitionTask = nil
             }
 
-            if manager.isShowing {
-                manager.dismiss()
-            }
-
-            try? await Task.sleep(for: outgoingSettleDuration)
-            if Task.isCancelled { return }
             guard pendingReplacementItem?.id == newItem.id else { return }
 
-            delegate.updateOverlay {
-                toastContent(newItem)
-            }
+            // Update content with previous content for simultaneous animation
+            delegate.updateOverlayWithPrevious(
+                previousContent: {
+                    if let last = self.lastPresentedItem {
+                        self.toastContent(last)
+                    } else {
+                        self.toastContent(newItem)
+                    }
+                },
+                newContent: {
+                    self.toastContent(newItem)
+                },
+                replacementID: replacementID
+            )
             lastPresentedItem = newItem
-
-            try? await Task.sleep(for: interToastDelay)
-            if Task.isCancelled { return }
-            guard pendingReplacementItem?.id == newItem.id else { return }
-
-            scheduleShow(for: newItem, using: manager)
+            presentationToItemID[replacementID] = newItem.id
         }
     }
 
