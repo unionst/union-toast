@@ -20,7 +20,23 @@ class ToastSceneDelegate: NSObject {
         self.windowScene = windowScene
     }
     
-    func addOverlay<Content: View>(dismissDelay: Duration? = nil, onDismiss: ((UUID) -> Void)? = nil, @ViewBuilder content: @escaping () -> Content) -> ToastManager {
+    func addOverlay<Content: View>(
+        dismissDelay: Duration? = nil,
+        onDismiss: ((UUID) -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> ToastManager {
+        addOverlay(
+            dismissDelay: dismissDelay,
+            onDismiss: onDismiss,
+            contentProvider: { content() }
+        )
+    }
+
+    func addOverlay(
+        dismissDelay: Duration? = nil,
+        onDismiss: ((UUID) -> Void)? = nil,
+        contentProvider: @escaping () -> any View
+    ) -> ToastManager {
         guard let scene = windowScene else {
             print("🍞 ToastSceneDelegate: No window scene available")
             if let dismissDelay {
@@ -43,9 +59,10 @@ class ToastSceneDelegate: NSObject {
         self.toastManager = manager
         
         let hosting = UIHostingController(
-            rootView: ToastOverlayView(manager: manager) {
-                content()
-            }
+            rootView: ToastOverlayView(
+                manager: manager,
+                content: contentProvider
+            )
         )
         hosting.view.backgroundColor = .clear
 
@@ -71,9 +88,21 @@ class ToastSceneDelegate: NSObject {
     }
     
     func updateOverlay<Content: View>(
-        previousContent: (() -> Content)? = nil,
+        previousContent: (() -> any View)? = nil,
         replacementPresentationID: UUID? = nil,
         @ViewBuilder content: @escaping () -> Content
+    ) {
+        updateOverlay(
+            previousContent: previousContent,
+            replacementPresentationID: replacementPresentationID,
+            contentProvider: { content() }
+        )
+    }
+
+    func updateOverlay(
+        previousContent: (() -> any View)? = nil,
+        replacementPresentationID: UUID? = nil,
+        contentProvider: @escaping () -> any View
     ) {
         guard let manager = toastManager,
               let overlayWindow = overlayWindow else {
@@ -84,10 +113,9 @@ class ToastSceneDelegate: NSObject {
             rootView: ToastOverlayView(
                 manager: manager,
                 previousContent: previousContent,
-                replacementPresentationID: replacementPresentationID
-            ) {
-                content()
-            }
+                replacementPresentationID: replacementPresentationID,
+                content: contentProvider
+            )
         )
         hosting.view.backgroundColor = .clear
 
@@ -98,9 +126,21 @@ class ToastSceneDelegate: NSObject {
         hosting.view.layoutIfNeeded()
     }
 
-    func updateOverlayWithPrevious<Content: View>(
-        previousContent: @escaping () -> Content,
-        newContent: @escaping () -> Content,
+    func updateOverlayWithPrevious<Previous: View, Next: View>(
+        previousContent: @escaping () -> Previous,
+        newContent: @escaping () -> Next,
+        replacementID: UUID
+    ) {
+        updateOverlayWithPrevious(
+            previousContent: { previousContent() },
+            newContent: { newContent() },
+            replacementID: replacementID
+        )
+    }
+
+    func updateOverlayWithPrevious(
+        previousContent: @escaping () -> any View,
+        newContent: @escaping () -> any View,
         replacementID: UUID
     ) {
         guard let manager = toastManager,
@@ -112,10 +152,9 @@ class ToastSceneDelegate: NSObject {
             rootView: ToastOverlayView(
                 manager: manager,
                 previousContent: previousContent,
-                replacementPresentationID: replacementID
-            ) {
-                newContent()
-            }
+                replacementPresentationID: replacementID,
+                content: newContent
+            )
         )
         hosting.view.backgroundColor = .clear
 

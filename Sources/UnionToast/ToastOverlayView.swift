@@ -7,17 +7,17 @@
 
 import SwiftUI
 
-struct ToastOverlayView<Content: View>: View {
+struct ToastOverlayView: View {
     let manager: ToastManager
-    let content: () -> Content
-    let previousContent: (() -> Content)?
+    let previousContent: (() -> any View)?
     let replacementPresentationID: UUID?
+    let content: () -> any View
 
     init(
         manager: ToastManager,
-        previousContent: (() -> Content)? = nil,
+        previousContent: (() -> any View)? = nil,
         replacementPresentationID: UUID? = nil,
-        @ViewBuilder content: @escaping () -> Content
+        content: @escaping () -> any View
     ) {
         self.manager = manager
         self.previousContent = previousContent
@@ -31,10 +31,12 @@ struct ToastOverlayView<Content: View>: View {
             .ignoresSafeArea()
             .overlay(alignment: .top) {
                 ToastView(
-                    previousContent: previousContent,
+                    previousContent: previousContent.map { provider in
+                        { AnyView(provider()) }
+                    },
                     replacementPresentationID: replacementPresentationID
                 ) {
-                    content()
+                    AnyView(content())
                 }
             }
             .environment(manager)

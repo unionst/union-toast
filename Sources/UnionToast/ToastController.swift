@@ -15,7 +15,7 @@ public final class ToastController: NSObject {
     
     private var sceneDelegate: ToastSceneDelegate?
     private var toastManager: ToastManager?
-    private var lastContent: (() -> AnyView)?
+    private var lastContent: (() -> any View)?
     private var pendingShowTask: Task<Void, Never>?
     private var presentationDismissHandlers: [(id: UUID, handler: () -> Void)] = []
 
@@ -45,8 +45,8 @@ public final class ToastController: NSObject {
 
         cleanupOldPresentationsIfNeeded()
 
-        let wrappedContent: () -> AnyView = {
-            AnyView(content())
+        let wrappedContent: () -> any View = {
+            content()
         }
 
         guard let manager = ensureManager(
@@ -58,9 +58,7 @@ public final class ToastController: NSObject {
 
         flushPendingDismissHandlers(preserving: manager.isShowing ? manager.presentationID : nil)
 
-        sceneDelegate?.updateOverlay {
-            wrappedContent()
-        }
+        sceneDelegate?.updateOverlay(contentProvider: wrappedContent)
 
         lastContent = wrappedContent
         scheduleShow(for: manager, onDismiss: nil)
@@ -80,8 +78,8 @@ public final class ToastController: NSObject {
         pendingShowTask?.cancel()
         cleanupOldPresentationsIfNeeded()
 
-        let wrappedContent: () -> AnyView = {
-            AnyView(content(item))
+        let wrappedContent: () -> any View = {
+            content(item)
         }
 
         guard let manager = ensureManager(
@@ -99,10 +97,9 @@ public final class ToastController: NSObject {
 
             sceneDelegate?.updateOverlay(
                 previousContent: previousContent,
-                replacementPresentationID: replacementID
-            ) {
-                wrappedContent()
-            }
+                replacementPresentationID: replacementID,
+                contentProvider: wrappedContent
+            )
 
             if let replacementID, let onDismiss {
                 presentationDismissHandlers.append((id: replacementID, handler: onDismiss))
@@ -112,9 +109,7 @@ public final class ToastController: NSObject {
         } else {
             flushPendingDismissHandlers(preserving: nil)
 
-            sceneDelegate?.updateOverlay {
-                wrappedContent()
-            }
+            sceneDelegate?.updateOverlay(contentProvider: wrappedContent)
             lastContent = wrappedContent
             scheduleShow(for: manager, onDismiss: onDismiss)
         }
@@ -176,7 +171,7 @@ public extension ToastController {
 private extension ToastController {
     func ensureManager(
         dismissDelay: Duration?,
-        initialContent: @escaping () -> AnyView
+        initialContent: @escaping () -> any View
     ) -> ToastManager? {
         if sceneDelegate == nil {
             setupToastOverlay()
@@ -191,10 +186,9 @@ private extension ToastController {
                 dismissDelay: dismissDelay,
                 onDismiss: { [weak self] presentationID in
                     self?.handleManagerDismiss(for: presentationID)
-                }
-            ) {
-                initialContent()
-            }
+                },
+                contentProvider: initialContent
+            )
         }
 
         return toastManager
