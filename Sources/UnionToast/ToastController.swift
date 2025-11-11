@@ -41,8 +41,7 @@ public final class ToastController: NSObject {
     }
 
     public func show<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
-        guard toastManager?.isShowing != true else { return }
-
+        pendingShowTask?.cancel()
         cleanupOldPresentationsIfNeeded()
 
         let wrappedContent: () -> any View = {
@@ -56,12 +55,26 @@ public final class ToastController: NSObject {
             return
         }
 
-        flushPendingDismissHandlers(preserving: manager.isShowing ? manager.presentationID : nil)
+        if manager.isShowing {
+            let previousContent = lastContent
+            let replacementID = manager.beginReplacement()
 
-        sceneDelegate?.updateOverlay(contentProvider: wrappedContent)
+            flushPendingDismissHandlers(preserving: replacementID)
 
-        lastContent = wrappedContent
-        scheduleShow(for: manager, onDismiss: nil)
+            sceneDelegate?.updateOverlay(
+                previousContent: previousContent,
+                replacementPresentationID: replacementID,
+                contentProvider: wrappedContent
+            )
+
+            lastContent = wrappedContent
+        } else {
+            flushPendingDismissHandlers(preserving: nil)
+
+            sceneDelegate?.updateOverlay(contentProvider: wrappedContent)
+            lastContent = wrappedContent
+            scheduleShow(for: manager, onDismiss: nil)
+        }
     }
 
     public func forceShow<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
