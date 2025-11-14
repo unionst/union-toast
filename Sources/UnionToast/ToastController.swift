@@ -56,15 +56,16 @@ public final class ToastController: NSObject {
         }
 
         if manager.isShowing {
-            let previousContent = lastContent
-            let replacementID = manager.beginReplacement()
+            guard let replacementID = manager.beginReplacement() else {
+                return
+            }
 
             flushPendingDismissHandlers(preserving: replacementID)
 
-            sceneDelegate?.updateOverlay(
-                previousContent: previousContent,
-                replacementPresentationID: replacementID,
-                contentProvider: wrappedContent
+            sceneDelegate?.updateOverlayWithPrevious(
+                previousContent: lastContent ?? wrappedContent,
+                newContent: wrappedContent,
+                replacementID: replacementID
             )
 
             lastContent = wrappedContent
@@ -103,18 +104,19 @@ public final class ToastController: NSObject {
         }
 
         if manager.isShowing {
-            let previousContent = lastContent
-            let replacementID = manager.beginReplacement()
+            guard let replacementID = manager.beginReplacement() else {
+                return
+            }
 
             flushPendingDismissHandlers(preserving: replacementID)
 
-            sceneDelegate?.updateOverlay(
-                previousContent: previousContent,
-                replacementPresentationID: replacementID,
-                contentProvider: wrappedContent
+            sceneDelegate?.updateOverlayWithPrevious(
+                previousContent: lastContent ?? wrappedContent,
+                newContent: wrappedContent,
+                replacementID: replacementID
             )
 
-            if let replacementID, let onDismiss {
+            if let onDismiss {
                 presentationDismissHandlers.append((id: replacementID, handler: onDismiss))
             }
 

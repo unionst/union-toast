@@ -263,7 +263,9 @@ struct ToastView<Content: View>: View {
                 }
             }
         }
-        .onChange(of: toastManager.replacementPresentationID) { _, newID in
+        .onChange(of: toastManager.replacementPresentationID) { oldID, newID in
+            guard oldID != newID else { return }
+
             if let newID {
                 startReplacementAnimationIfNeeded(for: newID)
             } else {
@@ -303,12 +305,6 @@ struct ToastView<Content: View>: View {
             } else if isReplacementIncoming {
                 applyReplacementIncomingEffects(
                     to: decoratedContent(content())
-                        .onAppear {
-                            if let replacementID = replacementPresentationID,
-                               replacementID == toastManager.replacementPresentationID {
-                                startReplacementAnimationIfNeeded(for: replacementID)
-                            }
-                        }
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.height
                         } action: { value in
@@ -319,12 +315,6 @@ struct ToastView<Content: View>: View {
             } else {
                 applyIncomingEffects(
                     to: decoratedContent(content())
-                        .onAppear {
-                            if let replacementID = replacementPresentationID,
-                               replacementID == toastManager.replacementPresentationID {
-                                startReplacementAnimationIfNeeded(for: replacementID)
-                            }
-                        }
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.height
                         } action: { value in
@@ -411,14 +401,15 @@ struct ToastView<Content: View>: View {
 private extension ToastView {
     func startReplacementAnimationIfNeeded(for replacementID: UUID) {
         guard previousContent != nil else { return }
+
+        // Prevent duplicate calls for the same replacement
         guard activeReplacementID != replacementID else { return }
 
+        // Cancel any previous animation and set the new ID
         replacementAnimationTask?.cancel()
         replacementAnimationTask = nil
-
         activeReplacementID = replacementID
         displayPreviousContent = true
-        replacementOutgoingProgress = 1
         replacementIncomingProgress = 0
         replacementPhase = .outgoing
 
@@ -426,16 +417,16 @@ private extension ToastView {
         let incomingDelay = replacementIncomingDelay
         let incomingDuration = replacementIncomingDuration
 
-        replacementAnimationTask = Task { @MainActor in
-            let outgoingAnimation = Animation.easeOut(duration: outgoingDuration)
-            withAnimation(outgoingAnimation) {
-                replacementOutgoingProgress = 0.01
-            }
+        let outgoingAnimation = Animation.easeOut(duration: outgoingDuration)
+        withAnimation(outgoingAnimation) {
+            replacementOutgoingProgress = 0.01
+        }
 
+        replacementAnimationTask = Task { @MainActor in
             if incomingDelay > 0 {
                 try? await Task.sleep(for: .seconds(incomingDelay))
             }
-            if Task.isCancelled { return }
+            guard !Task.isCancelled else { return }
 
             replacementPhase = .incoming
             var incomingAnimation: Animation = .default
@@ -455,9 +446,8 @@ private extension ToastView {
             }
 
             let totalDuration = max(outgoingDuration, incomingDelay + incomingDuration)
-            // Add extra time for spring to fully settle (springs overshoot beyond their duration)
             try? await Task.sleep(for: .seconds(totalDuration) + .milliseconds(350))
-            if Task.isCancelled { return }
+            guard !Task.isCancelled else { return }
 
             replacementOutgoingProgress = 0
 

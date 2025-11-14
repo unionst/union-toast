@@ -46,9 +46,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
 
         cleanupOldPresentationsIfNeeded()
 
-        guard let delegate = sceneDelegate else {
-            return
-        }
+        guard let delegate = sceneDelegate else { return }
 
         guard let newItem else {
             pendingShowTask?.cancel()
@@ -108,13 +106,13 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
               let index = presentationToItemID.firstIndex(where: { $0.presentationID == presentationID }) else {
             return false
         }
-        
+
         let dismissedItemID = presentationToItemID.remove(at: index).itemID
 
         if item?.id == dismissedItemID {
             item = nil
         }
-        
+
         if lastPresentedItem?.id == dismissedItemID {
             lastPresentedItem = nil
         }
@@ -125,11 +123,11 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     private func scheduleShow(for item: Item, using manager: ToastManager) {
         pendingShowTask?.cancel()
         pendingShowTask = Task { @MainActor in
-            if Task.isCancelled { return }
+            guard !Task.isCancelled else { return }
             try? await Task.sleep(for: .milliseconds(16))
-            if Task.isCancelled { return }
+            guard !Task.isCancelled else { return }
             manager.show()
-            if Task.isCancelled { return }
+            guard !Task.isCancelled else { return }
             presentationToItemID.append((presentationID: manager.presentationID, itemID: item.id))
             if pendingReplacementItem?.id == item.id {
                 pendingReplacementItem = nil
@@ -195,44 +193,35 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     }
 
     private func beginSequentialReplacement(for newItem: Item, using manager: ToastManager, delegate: ToastSceneDelegate) {
+        let currentlyShowingItem = self.lastPresentedItem
+
         pendingShowTask?.cancel()
+
+        if replacementTransitionTask != nil {
+            replacementTransitionTask?.cancel()
+            replacementTransitionTask = nil
+        }
+
         pendingReplacementItem = newItem
-        replacementTransitionTask?.cancel()
-        replacementTransitionTask = nil
 
         // Trigger simultaneous replacement animation
         guard let replacementID = manager.beginReplacement() else { return }
 
-        // Capture item ID at task creation to avoid race condition
-        let capturedItemID = newItem.id
-
-        replacementTransitionTask = Task { @MainActor in
-            defer {
-                if pendingReplacementItem?.id == capturedItemID {
-                    pendingReplacementItem = nil
-                }
-                replacementTransitionTask = nil
-            }
-
-            guard pendingReplacementItem?.id == capturedItemID else { return }
-
-            // Update content with previous content for simultaneous animation
-            delegate.updateOverlayWithPrevious(
-                previousContent: {
-                    if let last = self.lastPresentedItem {
-                        self.toastContent(last)
-                    } else {
-                        self.toastContent(newItem)
-                    }
-                },
-                newContent: {
+        delegate.updateOverlayWithPrevious(
+            previousContent: {
+                if let currentItem = currentlyShowingItem {
+                    self.toastContent(currentItem)
+                } else {
                     self.toastContent(newItem)
-                },
-                replacementID: replacementID
-            )
-            lastPresentedItem = newItem
-            presentationToItemID.append((presentationID: replacementID, itemID: newItem.id))
-        }
+                }
+            },
+            newContent: {
+                self.toastContent(newItem)
+            },
+            replacementID: replacementID
+        )
+        lastPresentedItem = newItem
+        presentationToItemID.append((presentationID: replacementID, itemID: newItem.id))
     }
 
     private var outgoingSettleDuration: Duration {

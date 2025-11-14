@@ -148,21 +148,24 @@ class ToastSceneDelegate: NSObject {
             return
         }
 
-        let hosting = UIHostingController(
-            rootView: ToastOverlayView(
-                manager: manager,
-                previousContent: previousContent,
-                replacementPresentationID: replacementID,
-                content: newContent
-            )
+        let newRootView = ToastOverlayView(
+            manager: manager,
+            previousContent: previousContent,
+            replacementPresentationID: replacementID,
+            content: newContent
         )
-        hosting.view.backgroundColor = .clear
 
-        overlayWindow.rootViewController = hosting
-        self.hostingController = hosting
+        if let hosting = hostingController as? UIHostingController<ToastOverlayView> {
+            hosting.rootView = newRootView
+        } else {
+            let hosting = UIHostingController(rootView: newRootView)
+            hosting.view.backgroundColor = .clear
+            overlayWindow.rootViewController = hosting
+            self.hostingController = hosting
+        }
 
-        hosting.view.setNeedsLayout()
-        hosting.view.layoutIfNeeded()
+        hostingController?.view.setNeedsLayout()
+        hostingController?.view.layoutIfNeeded()
     }
 
     func removeOverlay() {
