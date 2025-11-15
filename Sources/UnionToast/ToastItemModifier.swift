@@ -204,7 +204,6 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
 
         pendingReplacementItem = newItem
 
-        // Trigger simultaneous replacement animation
         guard let replacementID = manager.beginReplacement() else { return }
 
         delegate.updateOverlayWithPrevious(

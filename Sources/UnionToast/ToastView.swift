@@ -452,6 +452,10 @@ private extension ToastView {
             replacementOutgoingProgress = 0
 
             toastManager.completeReplacement()
+
+            // Wait for the manager's delayed state update before resetting our state
+            try? await Task.sleep(for: .milliseconds(100))
+
             resetReplacementAnimationState()
         }
     }
@@ -495,7 +499,6 @@ private extension ToastView {
         if #available(iOS 26.0, *) {
             view
                 .scaleEffect(0.40 + (progress * 0.60))
-                .opacity(0.4 + (progress * 0.6))
                 .blur(radius: (1 - progress) * 8)
                 .offset(y: (1 - progress) * 24)
         } else {
@@ -510,7 +513,6 @@ private extension ToastView {
         if #available(iOS 26.0, *) {
             view
                 .scaleEffect(0.40 + (progress * 0.60))
-                .opacity(0.4 + (progress * 0.6))
                 .blur(radius: (1 - progress) * 8)
                 .offset(y: -(1 - progress) * 120)
         } else {
@@ -524,7 +526,6 @@ private extension ToastView {
         if #available(iOS 26.0, *) {
             view
                 .scaleEffect(0.40 + (progress * 0.60))
-                .opacity(0.4 + (progress * 0.6))
                 .blur(radius: (1 - progress) * 8)
                 .offset(y: -(1 - progress) * 120)
         } else {
@@ -540,7 +541,6 @@ private extension ToastView {
         if #available(iOS 26.0, *) {
             view
                 .scaleEffect(0.40 + (progress * 0.60))
-                .opacity(0.4 + (progress * 0.6))
                 .blur(radius: (1 - progress) * 8)
                 .offset(y: -(1 - progress) * 120)
         } else {

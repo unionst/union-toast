@@ -90,16 +90,23 @@ class ToastManager {
     func completeReplacement() {
         guard isReplacing, let newID = replacementPresentationID else { return }
 
-        replacementPresentationID = nil
-        isReplacing = false
-        presentationID = newID
-        dismissTaskID = newID
-        isShowing = true
-        dismissTask = makeDismissTask(for: newID)
+        let outgoingID = pendingDismissPresentationID
 
-        if let outgoingID = pendingDismissPresentationID {
-            pendingDismissPresentationID = nil
-            onDismiss?(outgoingID)
+        // Delay state updates to reduce background re-rendering during animation
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
+
+            replacementPresentationID = nil
+            isReplacing = false
+            presentationID = newID
+            dismissTaskID = newID
+            isShowing = true
+            dismissTask = makeDismissTask(for: newID)
+
+            if let outgoingID {
+                pendingDismissPresentationID = nil
+                onDismiss?(outgoingID)
+            }
         }
     }
 

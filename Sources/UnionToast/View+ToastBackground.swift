@@ -155,16 +155,16 @@ struct ToastBackgroundShapeStyleModifier<Style: ShapeStyle>: ViewModifier {
 struct ConditionalToastBackgroundWrapper: ViewModifier {
     @Environment(\.toastBackgroundConfiguration) private var defaultConfiguration
     @State private var override: ToastBackgroundOverride = .none
-    
+
     func body(content: Content) -> some View {
         Group {
             switch override {
             case .custom:
                 content
-                
+
             case .shapeStyle(let config):
                 applyBackground(to: content, configuration: config)
-                
+
             case .none:
                 applyBackground(to: content, configuration: defaultConfiguration)
             }
@@ -177,7 +177,7 @@ struct ConditionalToastBackgroundWrapper: ViewModifier {
     @ViewBuilder
     private func applyBackground(to content: Content, configuration: ToastBackgroundConfiguration) -> some View {
         let shape = configuration.shape
-        
+
         let base = content
             .padding(configuration.padding)
             .toastApplyBaseBackgroundIfNeeded(configuration: configuration, shape: shape)
