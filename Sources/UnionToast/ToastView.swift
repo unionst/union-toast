@@ -138,13 +138,16 @@ struct ToastView<Content: View>: View {
                                 animationProgress = 1
                             }
                         } else {
-                            withAnimation(animation) {
+                            // Use explicit transaction to ensure both animations use same timing
+                            var transaction = Transaction(animation: animation)
+
+                            withTransaction(transaction) {
                                 scrollProxy.scrollTo("unit", anchor: .bottom)
-                                // Only set to 0 if we're not already animating from a swipe
                                 if animationProgress == 1.0 {
                                     animationProgress = 0
                                 }
                             }
+
                             willDismissResetTask?.cancel()
                             willDismissResetTask = Task {
                                 try? await Task.sleep(for: .seconds(1))
@@ -541,7 +544,7 @@ private extension ToastView {
         if #available(iOS 26.0, *) {
             view
                 .scaleEffect(0.40 + (progress * 0.60))
-                .blur(radius: (1 - progress) * 8)
+                .blur(radius: (1 - progress) * 16)
                 .offset(y: -(1 - progress) * 120)
         } else {
             view
