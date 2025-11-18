@@ -29,6 +29,8 @@ struct ToastView<Content: View>: View {
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var visibleID: String?
+    @State private var lastDragVelocity: CGFloat = 0
+    @State private var dragStartScrollPos: CGFloat = 0
 
     enum ScrollPosition {
         case top
@@ -46,7 +48,6 @@ struct ToastView<Content: View>: View {
         case incoming
     }
 
-    @State private var suppressNextTempScroll = false
     @State private var observedEdge: ScrollPosition?
     @State private var pendingEdge: ScrollPosition?
     @State private var userScrollActive = false
@@ -113,7 +114,7 @@ struct ToastView<Content: View>: View {
                     }
                     .onChange(of: toastManager.isShowing) {
                         var animation: Animation = .default
-                        
+
                         if #available(iOS 26.0, *) {
                             animation = .interpolatingSpring(
                                 mass: 1.0,
@@ -122,13 +123,7 @@ struct ToastView<Content: View>: View {
                                 initialVelocity: 5
                             )
                         }
-                        
-                        if suppressNextTempScroll {
-                            suppressNextTempScroll = false
-                            // Don't change animationProgress - let position tracking handle it
-                            return
-                        }
-                        
+
                         if toastManager.isShowing {
                             willDismissResetTask?.cancel()
                             willDismiss = false
@@ -139,7 +134,7 @@ struct ToastView<Content: View>: View {
                             }
                         } else {
                             // Use explicit transaction to ensure both animations use same timing
-                            var transaction = Transaction(animation: animation)
+                            let transaction = Transaction(animation: animation)
 
                             withTransaction(transaction) {
                                 scrollProxy.scrollTo("unit", anchor: .bottom)
@@ -168,27 +163,32 @@ struct ToastView<Content: View>: View {
                     } action: { oldOffset, newOffset in
                         let safeTop = geometryProxy.safeAreaInsets.top
                         let contentHeight = toastManager.contentHeight
-                        
+
                         let visibleOffset = -safeTop
                         // Toast is fully dismissed when its bottom edge passes the top of screen
                         let dismissedOffset = contentHeight  // Toast completely off-screen
                         let range = dismissedOffset - visibleOffset
-                        
+
                         guard range > 0 else { return }
-                        
+
                         let normalizedOffset = (newOffset - visibleOffset) / range
                         // Don't clamp to allow natural overshoot behavior
                         let scrollProgress = 1.0 - normalizedOffset
                         currentScrollPos = max(0, min(1, scrollProgress))  // Only clamp for storage
-                        
-                        
+
+                        // Update animation progress during drag for immediate visual feedback
+                        if isDragging && userScrollActive {
+                            let clampedScrollProgress = max(0, min(1, scrollProgress))
+                            animationProgress = clampedScrollProgress
+                        }
+
                         if !isDragging && userScrollActive && dismissStartScrollPos < 1.0 {
                             // Use clamped value for position tracking
                             let clampedScrollProgress = max(0, min(1, scrollProgress))
-                            
+
                             // Check if we're moving towards visible (showing) rather than dismissing
                             let isShowingToast = clampedScrollProgress > dismissStartScrollPos
-                            
+
                             if isShowingToast {
                                 userScrollActive = false
                                 animationProgress = 1
@@ -200,7 +200,7 @@ struct ToastView<Content: View>: View {
                                 }
                                 return
                             }
-                            
+
                             if clampedScrollProgress > lastTrackedProgress && lastTrackedProgress > 0 {
                                 userScrollActive = false
                                 animationProgress = 1
@@ -212,9 +212,9 @@ struct ToastView<Content: View>: View {
                                 }
                                 return
                             }
-                            
+
                             lastTrackedProgress = clampedScrollProgress
-                            
+
                             if dismissStartScrollPos > 0 {
                                 let distanceTraveled = dismissStartScrollPos - scrollProgress
                                 let maxDistance = dismissStartScrollPos
@@ -247,7 +247,7 @@ struct ToastView<Content: View>: View {
             if newValue {
                 toastManager.pauseTimer()
                 dragStartedFromBottom = (observedEdge == .bottom)
-                
+
                 if observedEdge == .top {
                     animationProgress = 1
                     dismissStartScrollPos = 1.0
@@ -258,7 +258,7 @@ struct ToastView<Content: View>: View {
                 }
             } else {
                 let startedFromBottom = animationProgress == 0 || (observedEdge == .bottom && currentScrollPos < 0.1)
-                
+
                 if !startedFromBottom && observedEdge != .bottom {
                     dismissStartScrollPos = currentScrollPos
                     dismissStartAnimProgress = animationProgress
@@ -341,29 +341,77 @@ struct ToastView<Content: View>: View {
     
     var dragGesture: some Gesture {
         DragGesture()
-            .onChanged { _ in
-                handleDragChanged()
+            .onChanged { value in
+                handleDragChanged(velocity: value.velocity)
             }
             .onEnded { value in
-                handleDragEnd()
+                handleDragEnd(velocity: value.velocity)
             }
     }
-    
-    func handleDragChanged() {
+
+    func handleDragChanged(velocity: CGSize = .zero) {
         userScrollCooldown?.cancel()
         userScrollActive = true
+
+        if !isDragging {
+            dragStartScrollPos = currentScrollPos
+        }
+
         isDragging = true
+        lastDragVelocity = velocity.height
     }
-    
-    func handleDragEnd() {
+
+    func shouldDismiss(dragDistance: CGFloat, velocity: CGFloat) -> Bool {
+        let toastHeight = toastManager.contentHeight
+
+        // Threshold 1: Fast downward flick (positive velocity = downward)
+        if velocity > 800 {
+            return true
+        }
+
+        // Threshold 2: Dragged past 33% of toast height
+        if dragDistance > toastHeight * 0.33 {
+            return true
+        }
+
+        // Threshold 3: Minimum 50pt drag
+        if dragDistance > 50 {
+            return true
+        }
+
+        return false
+    }
+
+    func handleDragEnd(velocity: CGSize = .zero) {
         isDragging = false
-        
+
+        // Calculate drag distance in points
+        let dragDistanceRatio = dragStartScrollPos - currentScrollPos
+        let toastHeight = toastManager.contentHeight
+        let dragDistancePoints = dragDistanceRatio * toastHeight
+
+        // Check custom thresholds
+        if shouldDismiss(dragDistance: dragDistancePoints, velocity: velocity.height) {
+            // Trigger dismissal with animation
+            // Don't suppress so the scroll animation happens
+            // But we need to manually animate animationProgress to 0
+            toastManager.dismiss()
+            dragStartScrollPos = 0
+
+            // Manually animate to 0 since scroll callbacks won't fire during programmatic scroll
+            withAnimation(.interpolatingSpring(mass: 1.0, stiffness: 98, damping: 13, initialVelocity: 5)) {
+                animationProgress = 0
+            }
+            return
+        }
+
         userScrollCooldown?.cancel()
         userScrollCooldown = Task {
             try? await Task.sleep(for: .milliseconds(250))
             userScrollActive = false
             willDismiss = false
-            
+            dragStartScrollPos = 0
+
             if toastManager.isShowing && observedEdge != .bottom {
                 animationProgress = 1
                 dismissStartScrollPos = 1.0
@@ -376,7 +424,7 @@ struct ToastView<Content: View>: View {
             }
             let wantShowing = (edge == .top)
             if toastManager.isShowing != wantShowing {
-                suppressNextTempScroll = true
+                // Don't suppress - let the natural scroll animation play
                 if wantShowing {
                     toastManager.show()
                 } else {
