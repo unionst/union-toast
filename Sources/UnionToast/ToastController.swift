@@ -12,14 +12,17 @@ import UnionHaptics
 @MainActor
 public final class ToastController: NSObject {
     public static let shared = ToastController()
-    
+
+    /// Maximum number of presentation dismiss handlers to track before automatic cleanup.
+    /// When this limit is reached, the oldest 50% of handlers are removed.
+    /// Default is 10. Increase for apps with very high-frequency toast presentations.
+    public var maxTrackedPresentations: Int = 10
+
     private var sceneDelegate: ToastSceneDelegate?
     private var toastManager: ToastManager?
     private var lastContent: (() -> any View)?
     private var pendingShowTask: Task<Void, Never>?
     private var presentationDismissHandlers: [(id: UUID, handler: () -> Void)] = []
-
-    private let maxTrackedPresentations = 100
 
     private override init() {
         super.init()

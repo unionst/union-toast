@@ -12,6 +12,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     let dismissDelay: Duration?
     let onDismiss: (() -> Void)?
     let toastContent: (Item) -> ToastContent
+    let maxTrackedPresentations: Int
 
     @State private var hasConfiguredOverlay = false
     @State private var sceneDelegate: ToastSceneDelegate?
@@ -22,8 +23,6 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     @State private var pendingReplacementItem: Item?
     @State private var replacementTransitionTask: Task<Void, Never>?
     @State private var isHandlingChange = false
-
-    private let maxTrackedPresentations = 100
 
     func body(content: Content) -> some View {
         content
