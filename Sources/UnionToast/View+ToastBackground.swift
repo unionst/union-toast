@@ -136,7 +136,7 @@ struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
 struct ToastBackgroundShapeStyleModifier<Style: ShapeStyle>: ViewModifier {
     @Environment(\.toastBackgroundConfiguration) private var configuration
     let style: Style
-    
+
     func body(content: Content) -> some View {
         let modifiedConfig = ToastBackgroundConfiguration(
             style: AnyShapeStyle(style),
@@ -146,9 +146,22 @@ struct ToastBackgroundShapeStyleModifier<Style: ShapeStyle>: ViewModifier {
             glassEffect: configuration.glassEffect,
             shadow: configuration.shadow
         )
-        
-        content
-            .preference(key: ToastBackgroundOverridePreferenceKey.self, value: .shapeStyle(modifiedConfig))
+
+        // Apply background directly AND set preference for the wrapper to ignore
+        let shape = modifiedConfig.shape
+
+        let base = content
+            .padding(modifiedConfig.padding)
+            .background(modifiedConfig.style, in: shape)
+            .clipShape(shape)
+
+        base
+            .toastApplyGlassEffectIfNeeded(shape: shape, configuration: modifiedConfig)
+            .toastApplyStrokeIfNeeded(shape: shape, configuration: modifiedConfig)
+            .toastApplyShadowIfNeeded(configuration: modifiedConfig)
+            .padding(.horizontal)
+            // Set preference to .custom so wrapper knows to skip applying background
+            .preference(key: ToastBackgroundOverridePreferenceKey.self, value: .custom)
     }
 }
 
