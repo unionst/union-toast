@@ -159,7 +159,6 @@ On iOS 26 the default `glassEffect` resolves to `.regular`, so the toast card 
 - `View.toast(item:onDismiss:dismissDelay:content:)` (`Item: Identifiable & Equatable`)
 - `View.toastBackground(alignment:content:)` and `View.toastBackground(_:)` for `ShapeStyle` backgrounds
 - `ToastController.show(dismissDelay:content:)`
-- `ToastController.forceShow(dismissDelay:content:)`
 - `ToastController.show(item:dismissDelay:onDismiss:content:)`
 - `ToastController.showWithHaptic(dismissDelay:haptic:content:)`
 - `ToastController.dismiss()` / `ToastController.remove()`

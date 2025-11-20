@@ -13,10 +13,7 @@ import UnionHaptics
 public final class ToastController: NSObject {
     public static let shared = ToastController()
 
-    /// Maximum number of presentation dismiss handlers to track before automatic cleanup.
-    /// When this limit is reached, the oldest 50% of handlers are removed.
-    /// Default is 10. Increase for apps with very high-frequency toast presentations.
-    public var maxTrackedPresentations: Int = 10
+    private var maxTrackedPresentations: Int = 10
 
     private var sceneDelegate: ToastSceneDelegate?
     private var toastManager: ToastManager?
@@ -43,6 +40,10 @@ public final class ToastController: NSObject {
         self.sceneDelegate = delegate
     }
 
+    /// Presents a toast view immediately (or queues it) using the controller instance.
+    /// - Parameters:
+    ///   - dismissDelay: Optional override for the auto-dismiss delay.
+    ///   - content: View builder describing the toast UI.
     public func show<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
         pendingShowTask?.cancel()
         cleanupOldPresentationsIfNeeded()
@@ -59,33 +60,25 @@ public final class ToastController: NSObject {
         }
 
         if manager.isShowing {
-            guard let replacementID = manager.beginReplacement() else {
-                return
-            }
-
-            flushPendingDismissHandlers(preserving: replacementID)
-
-            sceneDelegate?.updateOverlayWithPrevious(
-                previousContent: lastContent ?? wrappedContent,
-                newContent: wrappedContent,
-                replacementID: replacementID
-            )
-
-            lastContent = wrappedContent
+            performReplacement(using: manager, content: wrappedContent, onDismiss: nil)
         } else {
-            flushPendingDismissHandlers(preserving: nil)
+            manager.enqueueShowAction { [weak self] in
+                guard let self else { return }
+                self.flushPendingDismissHandlers(preserving: nil)
 
-            sceneDelegate?.updateOverlay(contentProvider: wrappedContent)
-            lastContent = wrappedContent
-            scheduleShow(for: manager, onDismiss: nil)
+                self.sceneDelegate?.updateOverlay(contentProvider: wrappedContent)
+                self.lastContent = wrappedContent
+                self.scheduleShow(for: manager, onDismiss: nil)
+            }
         }
     }
 
-    public func forceShow<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
-        remove()
-        show(dismissDelay: dismissDelay, content: content)
-    }
-
+    /// Presents a toast that is driven by an identifiable item. Replaces the current toast when a new item arrives.
+    /// - Parameters:
+    ///   - item: Identifiable, equatable payload that drives the toast content.
+    ///   - dismissDelay: Optional override for the auto-dismiss timing.
+    ///   - onDismiss: Callback invoked when the toast associated with `item` dismisses.
+    ///   - content: View builder that renders the toast from the supplied item.
     public func show<Item: Identifiable & Equatable, ToastContent: View>(
         item: Item,
         dismissDelay: Duration? = nil,
@@ -107,32 +100,20 @@ public final class ToastController: NSObject {
         }
 
         if manager.isShowing {
-            guard let replacementID = manager.beginReplacement() else {
-                return
-            }
-
-            flushPendingDismissHandlers(preserving: replacementID)
-
-            sceneDelegate?.updateOverlayWithPrevious(
-                previousContent: lastContent ?? wrappedContent,
-                newContent: wrappedContent,
-                replacementID: replacementID
-            )
-
-            if let onDismiss {
-                presentationDismissHandlers.append((id: replacementID, handler: onDismiss))
-            }
-
-            lastContent = wrappedContent
+            performReplacement(using: manager, content: wrappedContent, onDismiss: onDismiss)
         } else {
-            flushPendingDismissHandlers(preserving: nil)
+            manager.enqueueShowAction { [weak self] in
+                guard let self else { return }
+                self.flushPendingDismissHandlers(preserving: nil)
 
-            sceneDelegate?.updateOverlay(contentProvider: wrappedContent)
-            lastContent = wrappedContent
-            scheduleShow(for: manager, onDismiss: onDismiss)
+                self.sceneDelegate?.updateOverlay(contentProvider: wrappedContent)
+                self.lastContent = wrappedContent
+                self.scheduleShow(for: manager, onDismiss: onDismiss)
+            }
         }
     }
 
+    /// Dismisses the currently visible toast, if any, without destroying the overlay.
     public func dismiss() {
         pendingShowTask?.cancel()
         pendingShowTask = nil
@@ -140,6 +121,7 @@ public final class ToastController: NSObject {
         toastManager?.dismiss()
     }
 
+    /// Removes the overlay window and clears all pending toasts/handlers.
     public func remove() {
         pendingShowTask?.cancel()
         pendingShowTask = nil
@@ -153,20 +135,30 @@ public final class ToastController: NSObject {
 
 // MARK: - Convenience Methods
 public extension ToastController {
+    /// Presents a toast using the shared controller instance.
+    /// - Parameters:
+    ///   - dismissDelay: Optional override for how long the toast remains visible before auto-dismiss.
+    ///   - content: View builder describing the toast's contents.
     static func show<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
         shared.show(dismissDelay: dismissDelay, content: content)
     }
 
+    /// Presents a toast and plays the supplied haptic feedback before showing it.
+    /// - Parameters:
+    ///   - dismissDelay: Optional override for the auto-dismiss duration.
+    ///   - haptic: Feedback type to play just before the toast appears.
+    ///   - content: View builder describing the toast.
     static func showWithHaptic<Content: View>(dismissDelay: Duration? = nil, haptic: SensoryFeedback = .success, @ViewBuilder content: @escaping () -> Content) {
         Haptics.play(haptic)
         Self.show(dismissDelay: dismissDelay, content: content)
     }
 
-    /// Force show a toast, dismissing any existing toast first
-    static func forceShow<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) {
-        shared.forceShow(dismissDelay: dismissDelay, content: content)
-    }
-
+    /// Presents a toast driven by an identifiable item. Calling with a new item replaces the existing toast.
+    /// - Parameters:
+    ///   - item: Identifiable, equatable value representing the toast payload.
+    ///   - dismissDelay: Optional override for how long the toast stays visible.
+    ///   - onDismiss: Closure invoked after the toast tied to `item` dismisses.
+    ///   - content: View builder that renders the toast for the supplied item.
     static func show<Item: Identifiable & Equatable, ToastContent: View>(
         item: Item,
         dismissDelay: Duration? = nil,
@@ -176,10 +168,12 @@ public extension ToastController {
         shared.show(item: item, dismissDelay: dismissDelay, onDismiss: onDismiss, content: content)
     }
     
+    /// Dismisses the currently presented toast, if any.
     static func dismiss() {
         shared.dismiss()
     }
     
+    /// Removes the overlay window entirely, clearing any pending content and timers.
     static func remove() {
         shared.remove()
     }
@@ -265,5 +259,32 @@ private extension ToastController {
         // Remove oldest 50% when limit reached
         let keepCount = maxTrackedPresentations / 2
         presentationDismissHandlers.removeFirst(presentationDismissHandlers.count - keepCount)
+    }
+
+    func performReplacement(
+        using manager: ToastManager,
+        content: @escaping () -> any View,
+        onDismiss: (() -> Void)?
+    ) {
+        manager.enqueueReplacementAction { [weak self] in
+            guard let self else { return }
+            guard let replacementID = manager.beginReplacement() else {
+                return
+            }
+
+            self.flushPendingDismissHandlers(preserving: replacementID)
+
+            self.sceneDelegate?.updateOverlayWithPrevious(
+                previousContent: self.lastContent ?? content,
+                newContent: content,
+                replacementID: replacementID
+            )
+
+            if let onDismiss {
+                self.presentationDismissHandlers.append((id: replacementID, handler: onDismiss))
+            }
+
+            self.lastContent = content
+        }
     }
 }

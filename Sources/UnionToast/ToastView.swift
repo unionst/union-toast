@@ -111,6 +111,10 @@ struct ToastView<Content: View>: View {
                                 }
                             }
                         }
+
+                        if new == .bottom && !toastManager.isShowing {
+                            toastManager.notifyDismissAnimationCompleted()
+                        }
                     }
                     .onChange(of: toastManager.isShowing) {
                         var animation: Animation = .default
@@ -508,6 +512,7 @@ private extension ToastView {
             try? await Task.sleep(for: .milliseconds(100))
 
             resetReplacementAnimationState()
+            toastManager.notifyReplacementAnimationSettled()
         }
     }
 
