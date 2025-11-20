@@ -157,7 +157,7 @@ struct ToastView<Content: View>: View {
                     .scrollClipDisabled()
                     .applyDragGesture(drag: simultaneousDragGesture, simultaneousDrag: dragGesture)
                     .scrollTargetBehavior(.edges)
-                    .frame(height: toastManager.contentHeight)
+                    .frame(height: max(toastManager.contentHeight, 1))
                     .onScrollGeometryChange(for: CGFloat.self) { geometry in
                         geometry.contentOffset.y
                     } action: { oldOffset, newOffset in
@@ -296,6 +296,7 @@ struct ToastView<Content: View>: View {
             if isDisappearing {
                 applyDismissalEffects(
                     to: decoratedContent(content())
+                        .fixedSize()
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.height
                         } action: { value in
@@ -306,6 +307,7 @@ struct ToastView<Content: View>: View {
             } else if isReplacementIncoming {
                 applyReplacementIncomingEffects(
                     to: decoratedContent(content())
+                        .fixedSize()
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.height
                         } action: { value in
@@ -316,6 +318,7 @@ struct ToastView<Content: View>: View {
             } else {
                 applyIncomingEffects(
                     to: decoratedContent(content())
+                        .fixedSize()
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.height
                         } action: { value in
