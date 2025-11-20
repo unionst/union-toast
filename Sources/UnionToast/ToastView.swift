@@ -67,6 +67,7 @@ struct ToastView<Content: View>: View {
     @State private var replacementIncomingProgress: CGFloat = 1
     @State private var activeReplacementID: UUID?
     @State private var replacementAnimationTask: Task<Void, Never>?
+    @State private var dismissCompletionTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geometryProxy in
@@ -111,6 +112,12 @@ struct ToastView<Content: View>: View {
                                 }
                             }
                         }
+
+                        if new == .bottom && !toastManager.isShowing {
+                            dismissCompletionTask?.cancel()
+                            dismissCompletionTask = nil
+                            toastManager.notifyDismissAnimationCompleted()
+                        }
                     }
                     .onChange(of: toastManager.isShowing) {
                         var animation: Animation = .default
@@ -125,6 +132,8 @@ struct ToastView<Content: View>: View {
                         }
 
                         if toastManager.isShowing {
+                            dismissCompletionTask?.cancel()
+                            dismissCompletionTask = nil
                             willDismissResetTask?.cancel()
                             willDismiss = false
                             animationProgress = 0
@@ -148,6 +157,14 @@ struct ToastView<Content: View>: View {
                                 try? await Task.sleep(for: .seconds(1))
                                 willDismiss = false
                                 willDismissResetTask = nil
+                            }
+
+                            dismissCompletionTask?.cancel()
+                            dismissCompletionTask = Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(500))
+                                guard !toastManager.isShowing else { return }
+                                toastManager.notifyDismissAnimationCompleted()
+                                dismissCompletionTask = nil
                             }
                         }
                     }
@@ -509,6 +526,7 @@ private extension ToastView {
             try? await Task.sleep(for: .milliseconds(100))
 
             resetReplacementAnimationState()
+            toastManager.notifyReplacementAnimationSettled()
         }
     }
 

@@ -18,6 +18,9 @@ class ToastManager {
     private(set) var isReplacing = false
     private var pendingDismissPresentationID: UUID?
     var contentHeight: CGFloat = 0
+    private var pendingReplacementAction: (() -> Void)?
+    private var pendingShowAction: (() -> Void)?
+    private var isAnimatingOut = false
 
     private let dismissDelay: Duration
     private let onDismiss: ((UUID) -> Void)?
@@ -47,6 +50,8 @@ class ToastManager {
         presentationID = newPresentationID
         dismissTaskID = newPresentationID
         isShowing = true
+        isAnimatingOut = false
+        pendingShowAction = nil
         dismissTask = makeDismissTask(for: newPresentationID)
     }
     
@@ -54,6 +59,7 @@ class ToastManager {
         cancelTask()
         guard isShowing else { return }
         isShowing = false
+        isAnimatingOut = true
         cancelReplacement()
         onDismiss?(presentationID)
     }
@@ -114,5 +120,45 @@ class ToastManager {
         replacementPresentationID = nil
         pendingDismissPresentationID = nil
         isReplacing = false
+        pendingReplacementAction = nil
+    }
+
+    func enqueueShowAction(_ action: @escaping () -> Void) {
+        pendingShowAction = action
+        runPendingShowActionIfPossible()
+    }
+
+    func notifyDismissAnimationCompleted() {
+        isAnimatingOut = false
+        runPendingShowActionIfPossible()
+    }
+
+    func enqueueReplacementAction(_ action: @escaping () -> Void) {
+        pendingReplacementAction = action
+        processPendingReplacementIfNeeded()
+    }
+
+    func notifyReplacementAnimationSettled() {
+        processPendingReplacementIfNeeded()
+    }
+
+    private func runPendingShowActionIfPossible() {
+        guard !isAnimatingOut else { return }
+        guard let pendingShowAction else { return }
+        self.pendingShowAction = nil
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            pendingShowAction()
+        }
+    }
+
+    private func processPendingReplacementIfNeeded() {
+        guard !isReplacing else { return }
+        guard let pendingReplacementAction else { return }
+        self.pendingReplacementAction = nil
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            pendingReplacementAction()
+        }
     }
 }

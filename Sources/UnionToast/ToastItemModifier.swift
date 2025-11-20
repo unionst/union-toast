@@ -20,7 +20,8 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     @State private var presentationToItemID: [(presentationID: UUID, itemID: Item.ID)] = []
     @State private var pendingShowTask: Task<Void, Never>?
     @State private var lastPresentedItem: Item?
-    @State private var pendingReplacementItem: Item?
+    @State private var lastPresentedTimestamps: [Item.ID: Date] = [:]
+    private let duplicateDebounceInterval: TimeInterval = 1.0
     @State private var replacementTransitionTask: Task<Void, Never>?
     @State private var isHandlingChange = false
 
@@ -35,7 +36,12 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     }
 
     private func handleItemChange(_ newItem: Item?) {
-        guard !isHandlingChange else { return }
+        guard !isHandlingChange else {
+            Task { @MainActor [newItem] in
+                handleItemChange(newItem)
+            }
+            return
+        }
         isHandlingChange = true
         defer { isHandlingChange = false }
 
@@ -45,14 +51,15 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
 
         cleanupOldPresentationsIfNeeded()
 
-        guard let delegate = sceneDelegate else { return }
+        guard let delegate = sceneDelegate else {
+            return
+        }
 
         guard let newItem else {
             pendingShowTask?.cancel()
             pendingShowTask = nil
             replacementTransitionTask?.cancel()
             replacementTransitionTask = nil
-            pendingReplacementItem = nil
 
             if let manager = toastManager {
                 cancelPendingReplacements(excluding: manager.presentationID)
@@ -65,6 +72,10 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             return
         }
 
+        if shouldSkip(item: newItem) {
+            return
+        }
+
         let onDismissHandler: (UUID) -> Void = { presentationID in
             if clearBindingIfNeeded(for: presentationID) {
                 onDismiss?()
@@ -73,19 +84,23 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
 
         if let manager = toastManager {
             if manager.isShowing {
-                beginSequentialReplacement(for: newItem, using: manager, delegate: delegate)
+                manager.enqueueReplacementAction {
+                    beginSequentialReplacement(for: newItem, using: manager, delegate: delegate)
+                }
                 return
             }
 
-            replacementTransitionTask?.cancel()
-            replacementTransitionTask = nil
-            pendingReplacementItem = nil
+            manager.enqueueShowAction {
+                replacementTransitionTask?.cancel()
+                replacementTransitionTask = nil
 
-            delegate.updateOverlay {
-                toastContent(newItem)
+                delegate.updateOverlay {
+                    toastContent(newItem)
+                }
+                lastPresentedItem = newItem
+                updateLastPresentedTimestamp(for: newItem)
+                scheduleShow(for: newItem, using: manager)
             }
-            lastPresentedItem = newItem
-            scheduleShow(for: newItem, using: manager)
         } else {
             let manager = delegate.addOverlay(
                 dismissDelay: dismissDelay,
@@ -95,8 +110,30 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             }
             toastManager = manager
             lastPresentedItem = newItem
+            updateLastPresentedTimestamp(for: newItem)
             scheduleShow(for: newItem, using: manager)
         }
+    }
+
+    private func shouldSkip(item newItem: Item) -> Bool {
+        if let lastPresentedItem, lastPresentedItem == newItem {
+            return true
+        }
+
+        guard let lastTimestamp = lastPresentedTimestamps[newItem.id] else {
+            return false
+        }
+
+        let now = Date()
+        if now.timeIntervalSince(lastTimestamp) < duplicateDebounceInterval {
+            return true
+        }
+
+        return false
+    }
+
+    private func updateLastPresentedTimestamp(for item: Item) {
+        lastPresentedTimestamps[item.id] = Date()
     }
 
     @discardableResult
@@ -128,9 +165,6 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             manager.show()
             guard !Task.isCancelled else { return }
             presentationToItemID.append((presentationID: manager.presentationID, itemID: item.id))
-            if pendingReplacementItem?.id == item.id {
-                pendingReplacementItem = nil
-            }
             pendingShowTask = nil
         }
     }
@@ -201,8 +235,6 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             replacementTransitionTask = nil
         }
 
-        pendingReplacementItem = newItem
-
         guard let replacementID = manager.beginReplacement() else { return }
 
         delegate.updateOverlayWithPrevious(
@@ -219,6 +251,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             replacementID: replacementID
         )
         lastPresentedItem = newItem
+        updateLastPresentedTimestamp(for: newItem)
         presentationToItemID.append((presentationID: replacementID, itemID: newItem.id))
     }
 
