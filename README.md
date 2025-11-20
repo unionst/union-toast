@@ -151,6 +151,7 @@ On iOS 26 the default `glassEffect` resolves to `.regular`, so the toast card 
 - Interacting with the toast (hold or drag) pauses the timer; releasing resumes it.
 - Swiping up dismisses the toast with the same blur/squish animation used by the auto-dismiss path.
 - When a new toast arrives while one is on screen, the existing toast animates out while the new one animates in, matching system notification behavior.
+- Item-based presentations automatically ignore duplicate items that repeat within ~1 second to avoid accidental double posts.
 - Overlay windows are automatically created per scene, so toasts stay above modals and sheets without additional setup.
 
 ## Public API

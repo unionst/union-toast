@@ -20,6 +20,8 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     @State private var presentationToItemID: [(presentationID: UUID, itemID: Item.ID)] = []
     @State private var pendingShowTask: Task<Void, Never>?
     @State private var lastPresentedItem: Item?
+    @State private var lastPresentedTimestamps: [Item.ID: Date] = [:]
+    private let duplicateDebounceInterval: TimeInterval = 1.0
     @State private var replacementTransitionTask: Task<Void, Never>?
     @State private var isHandlingChange = false
 
@@ -34,7 +36,12 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
     }
 
     private func handleItemChange(_ newItem: Item?) {
-        guard !isHandlingChange else { return }
+        guard !isHandlingChange else {
+            Task { @MainActor [newItem] in
+                handleItemChange(newItem)
+            }
+            return
+        }
         isHandlingChange = true
         defer { isHandlingChange = false }
 
@@ -44,7 +51,9 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
 
         cleanupOldPresentationsIfNeeded()
 
-        guard let delegate = sceneDelegate else { return }
+        guard let delegate = sceneDelegate else {
+            return
+        }
 
         guard let newItem else {
             pendingShowTask?.cancel()
@@ -60,6 +69,10 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
 
             toastManager?.dismiss()
             lastPresentedItem = nil
+            return
+        }
+
+        if shouldSkip(item: newItem) {
             return
         }
 
@@ -85,6 +98,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
                     toastContent(newItem)
                 }
                 lastPresentedItem = newItem
+                updateLastPresentedTimestamp(for: newItem)
                 scheduleShow(for: newItem, using: manager)
             }
         } else {
@@ -96,8 +110,30 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             }
             toastManager = manager
             lastPresentedItem = newItem
+            updateLastPresentedTimestamp(for: newItem)
             scheduleShow(for: newItem, using: manager)
         }
+    }
+
+    private func shouldSkip(item newItem: Item) -> Bool {
+        if let lastPresentedItem, lastPresentedItem == newItem {
+            return true
+        }
+
+        guard let lastTimestamp = lastPresentedTimestamps[newItem.id] else {
+            return false
+        }
+
+        let now = Date()
+        if now.timeIntervalSince(lastTimestamp) < duplicateDebounceInterval {
+            return true
+        }
+
+        return false
+    }
+
+    private func updateLastPresentedTimestamp(for item: Item) {
+        lastPresentedTimestamps[item.id] = Date()
     }
 
     @discardableResult
@@ -215,6 +251,7 @@ struct ToastItemModifier<Item, ToastContent: View>: ViewModifier where Item: Ide
             replacementID: replacementID
         )
         lastPresentedItem = newItem
+        updateLastPresentedTimestamp(for: newItem)
         presentationToItemID.append((presentationID: replacementID, itemID: newItem.id))
     }
 
