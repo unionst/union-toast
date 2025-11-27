@@ -15,15 +15,47 @@ class ToastSceneDelegate: NSObject {
     var overlayWindow: PassThroughWindow?
     var toastManager: ToastManager?
     var hostingController: UIViewController?
-    
+
     func configure(with windowScene: UIWindowScene) {
         self.windowScene = windowScene
     }
     
-    func addOverlay<Content: View>(dismissDelay: Duration? = nil, @ViewBuilder content: @escaping () -> Content) -> ToastManager {
+    private func syncInterfaceStyle() {
+        guard let scene = windowScene,
+              let overlayWindow = overlayWindow else { return }
+        
+        let mainWindow = scene.windows.first { window in
+            window !== overlayWindow && !window.isHidden
+        }
+        
+        if let mainStyle = mainWindow?.overrideUserInterfaceStyle {
+            overlayWindow.overrideUserInterfaceStyle = mainStyle
+        }
+    }
+    
+    func addOverlay<Content: View>(
+        dismissDelay: Duration? = nil,
+        onDismiss: ((UUID) -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> ToastManager {
+        addOverlay(
+            dismissDelay: dismissDelay,
+            onDismiss: onDismiss,
+            contentProvider: { content() }
+        )
+    }
+
+    func addOverlay(
+        dismissDelay: Duration? = nil,
+        onDismiss: ((UUID) -> Void)? = nil,
+        contentProvider: @escaping () -> any View
+    ) -> ToastManager {
         guard let scene = windowScene else {
             print("🍞 ToastSceneDelegate: No window scene available")
-            return dismissDelay != nil ? ToastManager(dismissDelay: dismissDelay!) : ToastManager()
+            if let dismissDelay {
+                return ToastManager(dismissDelay: dismissDelay, onDismiss: onDismiss)
+            }
+            return ToastManager(onDismiss: onDismiss)
         }
 
         if overlayWindow != nil {
@@ -31,11 +63,19 @@ class ToastSceneDelegate: NSObject {
             removeOverlay()
         }
 
-        let manager = dismissDelay != nil ? ToastManager(dismissDelay: dismissDelay!) : ToastManager()
+        let manager: ToastManager
+        if let dismissDelay {
+            manager = ToastManager(dismissDelay: dismissDelay, onDismiss: onDismiss)
+        } else {
+            manager = ToastManager(onDismiss: onDismiss)
+        }
         self.toastManager = manager
         
         let hosting = UIHostingController(
-            rootView: ToastOverlayView(manager: manager, content: content)
+            rootView: ToastOverlayView(
+                manager: manager,
+                content: contentProvider
+            )
         )
         hosting.view.backgroundColor = .clear
 
@@ -57,18 +97,95 @@ class ToastSceneDelegate: NSObject {
 
         self.overlayWindow = passthroughOverlayWindow
         self.hostingController = hosting
+        syncInterfaceStyle()
         return manager
     }
     
-    func updateOverlay<Content: View>(@ViewBuilder content: @escaping () -> Content) {
+    func updateOverlay<Content: View>(
+        previousContent: (() -> any View)? = nil,
+        replacementPresentationID: UUID? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        updateOverlay(
+            previousContent: previousContent,
+            replacementPresentationID: replacementPresentationID,
+            contentProvider: { content() }
+        )
+    }
+
+    func updateOverlay(
+        previousContent: (() -> any View)? = nil,
+        replacementPresentationID: UUID? = nil,
+        contentProvider: @escaping () -> any View
+    ) {
         guard let manager = toastManager,
-              let hosting = hostingController as? UIHostingController<ToastOverlayView<Content>> else {
+              let overlayWindow = overlayWindow else {
             return
         }
 
-        hosting.rootView = ToastOverlayView(manager: manager, content: content)
+        syncInterfaceStyle()
+        
+        let hosting = UIHostingController(
+            rootView: ToastOverlayView(
+                manager: manager,
+                previousContent: previousContent,
+                replacementPresentationID: replacementPresentationID,
+                content: contentProvider
+            )
+        )
+        hosting.view.backgroundColor = .clear
+
+        overlayWindow.rootViewController = hosting
+        self.hostingController = hosting
+
+        hosting.view.setNeedsLayout()
+        hosting.view.layoutIfNeeded()
     }
-    
+
+    func updateOverlayWithPrevious<Previous: View, Next: View>(
+        previousContent: @escaping () -> Previous,
+        newContent: @escaping () -> Next,
+        replacementID: UUID
+    ) {
+        updateOverlayWithPrevious(
+            previousContent: { previousContent() },
+            newContent: { newContent() },
+            replacementID: replacementID
+        )
+    }
+
+    func updateOverlayWithPrevious(
+        previousContent: @escaping () -> any View,
+        newContent: @escaping () -> any View,
+        replacementID: UUID
+    ) {
+        guard let manager = toastManager,
+              let overlayWindow = overlayWindow else {
+            return
+        }
+
+        syncInterfaceStyle()
+        
+        let newRootView = ToastOverlayView(
+            manager: manager,
+            previousContent: previousContent,
+            replacementPresentationID: replacementID,
+            content: newContent
+        )
+
+        if let hosting = hostingController as? UIHostingController<ToastOverlayView> {
+            hosting.rootView = newRootView
+        } else {
+            let hosting = UIHostingController(rootView: newRootView)
+            hosting.view.backgroundColor = .clear
+            overlayWindow.rootViewController = hosting
+            self.hostingController = hosting
+        }
+
+        hostingController?.view.setNeedsLayout()
+        hostingController?.view.layoutIfNeeded()
+    }
+
     func removeOverlay() {
         overlayWindow?.isHidden = true
         overlayWindow = nil

@@ -10,6 +10,7 @@ import SwiftUI
 struct ToastModifier<ToastContent: View>: ViewModifier {
     @Binding var isPresented: Bool
     let dismissDelay: Duration?
+    let onDismiss: (() -> Void)?
     let toastContent: () -> ToastContent
 
     @State private var hasConfiguredOverlay = false
@@ -23,7 +24,9 @@ struct ToastModifier<ToastContent: View>: ViewModifier {
             }
             .onChange(of: isPresented) {
                 if isPresented {
-                    sceneDelegate?.updateOverlay(content: toastContent)
+                    sceneDelegate?.updateOverlay {
+                        toastContent()
+                    }
                     showToast()
                 } else {
                     hideToast()
@@ -74,7 +77,9 @@ struct ToastModifier<ToastContent: View>: ViewModifier {
 
         let delegate = ToastSceneDelegate()
         delegate.configure(with: scene)
-        let manager = delegate.addOverlay(dismissDelay: dismissDelay, content: toastContent)
+        let manager = delegate.addOverlay(dismissDelay: dismissDelay, onDismiss: { _ in
+            onDismiss?()
+        }, content: toastContent)
 
         sceneDelegate = delegate
         toastManager = manager
