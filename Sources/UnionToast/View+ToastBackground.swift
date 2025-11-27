@@ -183,41 +183,39 @@ struct ToastBackgroundTintModifier: ViewModifier {
 
 struct ConditionalToastBackgroundWrapper: ViewModifier {
     @Environment(\.toastBackgroundConfiguration) private var defaultConfiguration
+    @State private var override: ToastBackgroundOverride = .none
 
     func body(content: Content) -> some View {
+        let config = resolveConfig(override)
+        let shape = defaultConfiguration.shape
+        
         content
             .padding(defaultConfiguration.padding)
-            .clipShape(defaultConfiguration.shape)
-            .backgroundPreferenceValue(ToastBackgroundOverridePreferenceKey.self) { override in
-                ToastBackgroundView(override: override, defaultConfiguration: defaultConfiguration)
-            }
+            .background(config.style, in: shape)
+            .clipShape(shape)
+            .toastApplyGlassEffectIfNeeded(shape: shape, configuration: config)
+            .toastApplyShadowIfNeeded(configuration: config)
             .padding(.horizontal)
+            .onPreferenceChange(ToastBackgroundOverridePreferenceKey.self) { value in
+                override = value
+            }
     }
-}
-
-private struct ToastBackgroundView: View {
-    let override: ToastBackgroundOverride
-    let defaultConfiguration: ToastBackgroundConfiguration
     
-    var body: some View {
-        let config: ToastBackgroundConfiguration? = {
-            switch override {
-            case .custom:
-                return nil
-            case .shapeStyle(let c):
-                return c
-            case .none:
-                return defaultConfiguration
-            }
-        }()
-        
-        if let config {
-            GeometryReader { geo in
-                config.shape.fill(config.style)
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .toastApplyGlassEffectIfNeeded(shape: config.shape, configuration: config)
-                    .toastApplyShadowIfNeeded(configuration: config)
-            }
+    private func resolveConfig(_ override: ToastBackgroundOverride) -> ToastBackgroundConfiguration {
+        switch override {
+        case .custom:
+            return ToastBackgroundConfiguration(
+                style: AnyShapeStyle(Color.clear),
+                shape: defaultConfiguration.shape,
+                padding: defaultConfiguration.padding,
+                glassEffect: .disabled,
+                glassTint: nil,
+                shadow: nil
+            )
+        case .shapeStyle(let c):
+            return c
+        case .none:
+            return defaultConfiguration
         }
     }
 }
