@@ -36,11 +36,13 @@ public struct ToastBackgroundConfiguration: Sendable, Equatable {
     public var shape: AnyShape
     public var padding: EdgeInsets
     public var glassEffect: GlassEffectOption
+    public var glassTint: Color?
     public var shadow: Shadow?
     
     public static func == (lhs: ToastBackgroundConfiguration, rhs: ToastBackgroundConfiguration) -> Bool {
         lhs.padding == rhs.padding &&
         lhs.glassEffect == rhs.glassEffect &&
+        lhs.glassTint == rhs.glassTint &&
         lhs.shadow == rhs.shadow
     }
     
@@ -50,6 +52,7 @@ public struct ToastBackgroundConfiguration: Sendable, Equatable {
         shape: AnyShape = AnyShape(Capsule()),
         padding: EdgeInsets = EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16),
         glassEffect: GlassEffectOption = .automatic,
+        glassTint: Color? = nil,
         shadow: Shadow? = Shadow(
             color: Color.black.opacity(0.10),
             radius: 28,
@@ -62,6 +65,7 @@ public struct ToastBackgroundConfiguration: Sendable, Equatable {
         self.shape = shape
         self.padding = padding
         self.glassEffect = glassEffect
+        self.glassTint = glassTint
         self.shadow = shadow
     }
 }
@@ -113,6 +117,10 @@ public extension View {
     ) -> some View {
         self.modifier(ToastBackgroundShapeStyleModifier(style: style))
     }
+    
+    func toastBackground(_ tint: Color) -> some View {
+        self.modifier(ToastBackgroundTintModifier(tint: tint))
+    }
 }
 
 struct ToastBackgroundContentModifier<Background: View>: ViewModifier {
@@ -144,6 +152,27 @@ struct ToastBackgroundShapeStyleModifier<Style: ShapeStyle>: ViewModifier {
             shape: configuration.shape,
             padding: configuration.padding,
             glassEffect: configuration.glassEffect,
+            glassTint: configuration.glassTint,
+            shadow: configuration.shadow
+        )
+
+        content
+            .preference(key: ToastBackgroundOverridePreferenceKey.self, value: .shapeStyle(modifiedConfig))
+    }
+}
+
+struct ToastBackgroundTintModifier: ViewModifier {
+    @Environment(\.toastBackgroundConfiguration) private var configuration
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        let modifiedConfig = ToastBackgroundConfiguration(
+            style: AnyShapeStyle(Color.clear),
+            strokeStyle: configuration.strokeStyle,
+            shape: configuration.shape,
+            padding: configuration.padding,
+            glassEffect: configuration.glassEffect,
+            glassTint: tint,
             shadow: configuration.shadow
         )
 
@@ -211,15 +240,35 @@ private extension View {
             case .disabled:
                 self
             case .automatic:
-                self.glassEffect(.regular, in: shape)
+                if let tint = configuration.glassTint {
+                    self.glassEffect(.regular.interactive().tint(tint), in: shape)
+                } else {
+                    self.glassEffect(.regular.interactive(), in: shape)
+                }
             case .clear:
-                self.glassEffect(.clear, in: shape)
+                if let tint = configuration.glassTint {
+                    self.glassEffect(.clear.tint(tint), in: shape)
+                } else {
+                    self.glassEffect(.clear, in: shape)
+                }
             case .regular:
-                self.glassEffect(.regular, in: shape)
+                if let tint = configuration.glassTint {
+                    self.glassEffect(.regular.tint(tint), in: shape)
+                } else {
+                    self.glassEffect(.regular, in: shape)
+                }
             case .regularInteractive:
-                self.glassEffect(.regular.interactive(), in: shape)
+                if let tint = configuration.glassTint {
+                    self.glassEffect(.regular.interactive().tint(tint), in: shape)
+                } else {
+                    self.glassEffect(.regular.interactive(), in: shape)
+                }
             case .clearInteractive:
-                self.glassEffect(.clear.interactive(), in: shape)
+                if let tint = configuration.glassTint {
+                    self.glassEffect(.clear.interactive().tint(tint), in: shape)
+                } else {
+                    self.glassEffect(.clear.interactive(), in: shape)
+                }
             }
         } else {
             self
