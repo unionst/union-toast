@@ -20,6 +20,19 @@ class ToastSceneDelegate: NSObject {
         self.windowScene = windowScene
     }
     
+    private func syncInterfaceStyle() {
+        guard let scene = windowScene,
+              let overlayWindow = overlayWindow else { return }
+        
+        let mainWindow = scene.windows.first { window in
+            window !== overlayWindow && !window.isHidden
+        }
+        
+        if let mainStyle = mainWindow?.overrideUserInterfaceStyle {
+            overlayWindow.overrideUserInterfaceStyle = mainStyle
+        }
+    }
+    
     func addOverlay<Content: View>(
         dismissDelay: Duration? = nil,
         onDismiss: ((UUID) -> Void)? = nil,
@@ -84,6 +97,7 @@ class ToastSceneDelegate: NSObject {
 
         self.overlayWindow = passthroughOverlayWindow
         self.hostingController = hosting
+        syncInterfaceStyle()
         return manager
     }
     
@@ -109,6 +123,8 @@ class ToastSceneDelegate: NSObject {
             return
         }
 
+        syncInterfaceStyle()
+        
         let hosting = UIHostingController(
             rootView: ToastOverlayView(
                 manager: manager,
@@ -148,6 +164,8 @@ class ToastSceneDelegate: NSObject {
             return
         }
 
+        syncInterfaceStyle()
+        
         let newRootView = ToastOverlayView(
             manager: manager,
             previousContent: previousContent,
