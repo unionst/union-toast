@@ -147,21 +147,8 @@ struct ToastBackgroundShapeStyleModifier<Style: ShapeStyle>: ViewModifier {
             shadow: configuration.shadow
         )
 
-        // Apply background directly AND set preference for the wrapper to ignore
-        let shape = modifiedConfig.shape
-
-        let base = content
-            .padding(modifiedConfig.padding)
-            .background(modifiedConfig.style, in: shape)
-            .clipShape(shape)
-
-        base
-            .toastApplyGlassEffectIfNeeded(shape: shape, configuration: modifiedConfig)
-            .toastApplyStrokeIfNeeded(shape: shape, configuration: modifiedConfig)
-            .toastApplyShadowIfNeeded(configuration: modifiedConfig)
-            .padding(.horizontal)
-            // Set preference to .custom so wrapper knows to skip applying background
-            .preference(key: ToastBackgroundOverridePreferenceKey.self, value: .custom)
+        content
+            .preference(key: ToastBackgroundOverridePreferenceKey.self, value: .shapeStyle(modifiedConfig))
     }
 }
 
