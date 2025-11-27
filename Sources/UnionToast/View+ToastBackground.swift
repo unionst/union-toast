@@ -168,10 +168,10 @@ struct ToastBackgroundTintModifier: ViewModifier {
     func body(content: Content) -> some View {
         let modifiedConfig = ToastBackgroundConfiguration(
             style: AnyShapeStyle(Color.clear),
-            strokeStyle: configuration.strokeStyle,
+            strokeStyle: nil,
             shape: configuration.shape,
             padding: configuration.padding,
-            glassEffect: configuration.glassEffect,
+            glassEffect: .automatic,
             glassTint: tint,
             shadow: configuration.shadow
         )
@@ -183,40 +183,42 @@ struct ToastBackgroundTintModifier: ViewModifier {
 
 struct ConditionalToastBackgroundWrapper: ViewModifier {
     @Environment(\.toastBackgroundConfiguration) private var defaultConfiguration
-    @State private var override: ToastBackgroundOverride = .none
 
     func body(content: Content) -> some View {
-        Group {
+        content
+            .padding(defaultConfiguration.padding)
+            .clipShape(defaultConfiguration.shape)
+            .backgroundPreferenceValue(ToastBackgroundOverridePreferenceKey.self) { override in
+                ToastBackgroundView(override: override, defaultConfiguration: defaultConfiguration)
+            }
+            .padding(.horizontal)
+    }
+}
+
+private struct ToastBackgroundView: View {
+    let override: ToastBackgroundOverride
+    let defaultConfiguration: ToastBackgroundConfiguration
+    
+    var body: some View {
+        let config: ToastBackgroundConfiguration? = {
             switch override {
             case .custom:
-                content
-
-            case .shapeStyle(let config):
-                applyBackground(to: content, configuration: config)
-
+                return nil
+            case .shapeStyle(let c):
+                return c
             case .none:
-                applyBackground(to: content, configuration: defaultConfiguration)
+                return defaultConfiguration
+            }
+        }()
+        
+        if let config {
+            GeometryReader { geo in
+                config.shape.fill(config.style)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .toastApplyGlassEffectIfNeeded(shape: config.shape, configuration: config)
+                    .toastApplyShadowIfNeeded(configuration: config)
             }
         }
-        .onPreferenceChange(ToastBackgroundOverridePreferenceKey.self) { value in
-            override = value
-        }
-    }
-    
-    @ViewBuilder
-    private func applyBackground(to content: Content, configuration: ToastBackgroundConfiguration) -> some View {
-        let shape = configuration.shape
-
-        let base = content
-            .padding(configuration.padding)
-            .toastApplyBaseBackgroundIfNeeded(configuration: configuration, shape: shape)
-            .clipShape(shape)
-
-        base
-            .toastApplyGlassEffectIfNeeded(shape: shape, configuration: configuration)
-            .toastApplyStrokeIfNeeded(shape: shape, configuration: configuration)
-            .toastApplyShadowIfNeeded(configuration: configuration)
-            .padding(.horizontal)
     }
 }
 
@@ -240,35 +242,15 @@ private extension View {
             case .disabled:
                 self
             case .automatic:
-                if let tint = configuration.glassTint {
-                    self.glassEffect(.regular.interactive().tint(tint), in: shape)
-                } else {
-                    self.glassEffect(.regular.interactive(), in: shape)
-                }
+                self.glassEffect(.regular.interactive().tint(configuration.glassTint ?? .white.opacity(0)), in: shape)
             case .clear:
-                if let tint = configuration.glassTint {
-                    self.glassEffect(.clear.tint(tint), in: shape)
-                } else {
-                    self.glassEffect(.clear, in: shape)
-                }
+                self.glassEffect(.clear.tint(configuration.glassTint ?? .white.opacity(0)), in: shape)
             case .regular:
-                if let tint = configuration.glassTint {
-                    self.glassEffect(.regular.tint(tint), in: shape)
-                } else {
-                    self.glassEffect(.regular, in: shape)
-                }
+                self.glassEffect(.regular.tint(configuration.glassTint ?? .white.opacity(0)), in: shape)
             case .regularInteractive:
-                if let tint = configuration.glassTint {
-                    self.glassEffect(.regular.interactive().tint(tint), in: shape)
-                } else {
-                    self.glassEffect(.regular.interactive(), in: shape)
-                }
+                self.glassEffect(.regular.interactive().tint(configuration.glassTint ?? .white.opacity(0)), in: shape)
             case .clearInteractive:
-                if let tint = configuration.glassTint {
-                    self.glassEffect(.clear.interactive().tint(tint), in: shape)
-                } else {
-                    self.glassEffect(.clear.interactive(), in: shape)
-                }
+                self.glassEffect(.clear.interactive().tint(configuration.glassTint ?? .white.opacity(0)), in: shape)
             }
         } else {
             self

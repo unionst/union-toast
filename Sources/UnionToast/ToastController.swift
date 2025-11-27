@@ -209,7 +209,7 @@ private extension ToastController {
     func scheduleShow(for manager: ToastManager, onDismiss: (() -> Void)?) {
         pendingShowTask?.cancel()
         pendingShowTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(16))
+            try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled else { return }
 
             manager.show()
