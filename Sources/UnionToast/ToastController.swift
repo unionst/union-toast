@@ -20,6 +20,10 @@ public final class ToastController: NSObject {
     private var lastContent: (() -> any View)?
     private var pendingShowTask: Task<Void, Never>?
     private var presentationDismissHandlers: [(id: UUID, handler: () -> Void)] = []
+    
+    private var lastPresentedItemEquality: ((Any) -> Bool)?
+    private var lastPresentedTimestamps: [AnyHashable: Date] = [:]
+    private let duplicateDebounceInterval: TimeInterval = 1.0
 
     private override init() {
         super.init()
@@ -85,6 +89,10 @@ public final class ToastController: NSObject {
         onDismiss: (() -> Void)? = nil,
         @ViewBuilder content: @escaping (Item) -> ToastContent
     ) {
+        if shouldSkip(item: item) {
+            return
+        }
+        
         pendingShowTask?.cancel()
         cleanupOldPresentationsIfNeeded()
 
@@ -98,6 +106,8 @@ public final class ToastController: NSObject {
         ) else {
             return
         }
+
+        updateLastPresentedItem(item)
 
         if manager.isShowing {
             performReplacement(using: manager, content: wrappedContent, onDismiss: onDismiss)
@@ -118,6 +128,7 @@ public final class ToastController: NSObject {
         pendingShowTask?.cancel()
         pendingShowTask = nil
         flushPendingDismissHandlers(preserving: toastManager?.presentationID)
+        clearLastPresentedItem()
         toastManager?.dismiss()
     }
 
@@ -130,6 +141,8 @@ public final class ToastController: NSObject {
         toastManager = nil
         lastContent = nil
         presentationDismissHandlers.removeAll()
+        lastPresentedItemEquality = nil
+        lastPresentedTimestamps.removeAll()
     }
 }
 
@@ -234,6 +247,7 @@ private extension ToastController {
 
         if toastManager?.isShowing == false {
             lastContent = nil
+            clearLastPresentedItem()
         }
     }
 
@@ -256,9 +270,36 @@ private extension ToastController {
     private func cleanupOldPresentationsIfNeeded() {
         guard presentationDismissHandlers.count > maxTrackedPresentations else { return }
 
-        // Remove oldest 50% when limit reached
         let keepCount = maxTrackedPresentations / 2
         presentationDismissHandlers.removeFirst(presentationDismissHandlers.count - keepCount)
+    }
+    
+    private func shouldSkip<Item: Identifiable & Equatable>(item: Item) -> Bool {
+        if let equalityCheck = lastPresentedItemEquality, equalityCheck(item) {
+            return true
+        }
+        
+        guard let lastTimestamp = lastPresentedTimestamps[AnyHashable(item.id)] else {
+            return false
+        }
+        
+        if Date().timeIntervalSince(lastTimestamp) < duplicateDebounceInterval {
+            return true
+        }
+        
+        return false
+    }
+    
+    private func updateLastPresentedItem<Item: Identifiable & Equatable>(_ item: Item) {
+        lastPresentedItemEquality = { anyItem in
+            guard let typedItem = anyItem as? Item else { return false }
+            return typedItem == item
+        }
+        lastPresentedTimestamps[AnyHashable(item.id)] = Date()
+    }
+    
+    private func clearLastPresentedItem() {
+        lastPresentedItemEquality = nil
     }
 
     func performReplacement(
