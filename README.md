@@ -1,4 +1,8 @@
-# UnionToast
+<h1 align="center">UnionToast</h1>
+
+<p align="center">
+  <img src="assets/demo.gif" alt="UnionToast Demo" width="480">
+</p>
 
 UnionToast gives SwiftUI apps an iOS 26-style toast that feels native out of the box while staying fully customizable.
 
@@ -22,6 +26,15 @@ Add the package with Swift Package Manager:
 Then add `UnionToast` to the target dependencies that should show toasts.
 
 ## Usage
+
+```swift
+@State private var isShowingToast = false
+
+Button("Show Toast") { isShowingToast = true }
+    .toast(isPresented: $isShowingToast) {
+        Label("Invitation sent", systemImage: "paperplane.fill")
+    }
+```
 
 ### Boolean modifier
 
