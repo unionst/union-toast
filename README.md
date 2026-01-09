@@ -164,7 +164,7 @@ On iOS 26 the default `glassEffect` resolves to `.regular`, so the toast card 
 On devices with a Dynamic Island, toasts can animate directly from the island for a more integrated feel. On devices without a Dynamic Island, the toast automatically falls back to the regular style.
 
 <p align="center">
-  <video src="assets/dynamic-island-demo.mp4" width="300" autoplay loop muted playsinline></video>
+  <img src="assets/dynamic-island-demo.gif" alt="Dynamic Island Toast Demo" width="480">
 </p>
 
 ```swift
