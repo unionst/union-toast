@@ -53,12 +53,11 @@ struct DynamicIslandToastView<Content: View>: View {
                     width: isExpanded ? expandedWidth : dynamicIslandWidth,
                     height: isExpanded ? expandedHeight : dynamicIslandHeight
                 )
-                .contentShape(.rect)
-                .highPriorityGesture(
-                    DragGesture(minimumDistance: 10)
+                .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                .gesture(
+                    DragGesture(minimumDistance: 5)
                         .onEnded { value in
-                            if value.translation.height < 0 {
-                                // Dismiss on swipe up
+                            if value.translation.height < -10 {
                                 onDismiss()
                             }
                         }
@@ -77,6 +76,7 @@ struct DynamicIslandToastView<Content: View>: View {
                 .geometryGroup()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .ignoresSafeArea()
+                .allowsHitTesting(isExpanded)
                 .animation(.bouncy(duration: 0.3, extraBounce: 0), value: isExpanded)
         }
     }

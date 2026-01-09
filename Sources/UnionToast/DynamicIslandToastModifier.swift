@@ -141,6 +141,7 @@ struct DynamicIslandToastModifier<ToastContent: View>: ViewModifier {
                     if newValue {
                         toastState.expand()
                         overlayController?.isStatusBarHidden = true
+                        updateHittableRect(expanded: true)
                         // Schedule auto-dismiss
                         toastState.scheduleDismiss(after: dismissDelay) {
                             isPresented = false
@@ -149,6 +150,7 @@ struct DynamicIslandToastModifier<ToastContent: View>: ViewModifier {
                     } else {
                         toastState.collapse()
                         overlayController?.isStatusBarHidden = false
+                        updateHittableRect(expanded: false)
                     }
                 }
         } else if deviceHasDynamicIsland == false {
@@ -181,7 +183,10 @@ struct DynamicIslandToastModifier<ToastContent: View>: ViewModifier {
 
         let wrapperView = DynamicIslandToastWrapper(
             state: toastState,
-            onDismiss: {
+            onDismiss: { [self] in
+                toastState.collapse()
+                overlayController?.isStatusBarHidden = false
+                passthroughWindow.hittableRect = nil
                 isPresented = false
                 onDismiss?()
             },
@@ -206,11 +211,35 @@ struct DynamicIslandToastModifier<ToastContent: View>: ViewModifier {
         if isPresented {
             toastState.expand()
             hosting.isStatusBarHidden = true
+            updateHittableRect(expanded: true)
             // Schedule auto-dismiss
             toastState.scheduleDismiss(after: dismissDelay) {
                 isPresented = false
                 onDismiss?()
             }
+        }
+    }
+
+    private func updateHittableRect(expanded: Bool) {
+        guard let window = overlayWindow else { return }
+
+        if expanded {
+            let screenWidth = window.bounds.width
+            let safeAreaTop = window.safeAreaInsets.top
+            let topOffset = 11 + max((safeAreaTop - 59), 0)
+            let expandedWidth = screenWidth - 20
+            let expandedHeight: CGFloat = 90
+
+            // Toast is centered horizontally
+            let rect = CGRect(
+                x: 10,
+                y: topOffset,
+                width: expandedWidth,
+                height: expandedHeight
+            )
+            window.hittableRect = rect
+        } else {
+            window.hittableRect = nil
         }
     }
 }
