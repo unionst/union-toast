@@ -27,6 +27,9 @@ public struct _ToastExample: View {
     @State private var showTintedToast = false
     @State private var showCustomBackgroundToast = false
 
+    // MARK: - Dynamic Island toast state
+    @State private var showDynamicIslandToast = false
+
     public init() {}
 
     public var body: some View {
@@ -36,6 +39,7 @@ public struct _ToastExample: View {
                 itemBasedSection
                 controllerSection
                 backgroundSection
+                dynamicIslandSection
             }
             .navigationTitle("Toast Examples")
         }
@@ -63,6 +67,10 @@ public struct _ToastExample: View {
                             endPoint: .trailing
                         ))
                 }
+        }
+        .toast(isPresented: $showDynamicIslandToast, style: .dynamicIsland) {
+            Label("Dynamic Island Toast!", systemImage: "checkmark.circle.fill")
+                .font(.callout.weight(.semibold))
         }
     }
 
@@ -188,6 +196,18 @@ public struct _ToastExample: View {
             Text("Custom Backgrounds")
         } footer: {
             Text("Customize toast appearance with .toastBackground() modifier.")
+        }
+    }
+
+    private var dynamicIslandSection: some View {
+        Section {
+            Button("Show Dynamic Island Toast") {
+                showDynamicIslandToast = true
+            }
+        } header: {
+            Text("Dynamic Island Toast")
+        } footer: {
+            Text("Uses .toast(isPresented:, style: .dynamicIsland). On Dynamic Island devices, animates from the island. Falls back to regular toast on other devices.")
         }
     }
 }
