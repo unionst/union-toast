@@ -81,14 +81,30 @@ struct DynamicIslandToastView<Content: View>: View {
         }
     }
 
+    @Environment(\.colorScheme) private var colorScheme
+
     @ViewBuilder
     var toastBackground: some View {
         if #available(iOS 26.0, *) {
             ConcentricRectangle(corners: .concentric(minimum: .fixed(30)), isUniform: true)
                 .fill(.black)
+                .overlay {
+                    if colorScheme == .dark {
+                        ConcentricRectangle(corners: .concentric(minimum: .fixed(30)), isUniform: true)
+                            .stroke(.white.opacity(0.2), lineWidth: 1)
+                            .padding(-0.5)
+                    }
+                }
         } else {
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(.black)
+                .overlay {
+                    if colorScheme == .dark {
+                        RoundedRectangle(cornerRadius: 30, style: .continuous)
+                            .stroke(.white.opacity(0.2), lineWidth: 1)
+                            .padding(-0.5)
+                    }
+                }
         }
     }
 
@@ -96,5 +112,24 @@ struct DynamicIslandToastView<Content: View>: View {
     func toastContent(haveDynamicIsland: Bool) -> some View {
         content()
             .foregroundStyle(.white)
+            .labelStyle(DynamicIslandLabelStyle())
+    }
+}
+
+// MARK: - Dynamic Island Label Style
+
+struct DynamicIslandLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 10) {
+            configuration.icon
+                .font(.system(size: 40))
+                .frame(width: 50)
+
+            configuration.title
+                .font(.callout)
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 20)
     }
 }
