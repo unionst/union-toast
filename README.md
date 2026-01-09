@@ -9,6 +9,7 @@ UnionToast gives SwiftUI apps an iOS 26-style toast that feels native out of t
 ## Features
 
 - SwiftUI `.toast` modifiers for both boolean bindings and identifiable items, each with `onDismiss`
+- Dynamic Island toast style that animates from the island on supported devices
 - System-style replacement choreography tuned for iOS 26 (liquid glass) and iOS 18 (material fade)
 - Smooth entrance and swipe-to-dismiss animations with automatic timer pause on interaction
 - Automatic liquid glass background on iOS 26 and `.regularMaterial` fallback elsewhere, customizable via `.toastBackground`
@@ -158,6 +159,22 @@ struct CustomStylingView: View {
 
 On iOS 26 the default `glassEffect` resolves to `.regular`, so the toast card appears with the liquid glass aesthetic. Set `glassEffect: .clear` for a lighter variant or `.disabled` to fall back to the provided background style.
 
+### Dynamic Island style
+
+On devices with a Dynamic Island, toasts can animate directly from the island for a more integrated feel. On devices without a Dynamic Island, the toast automatically falls back to the regular style.
+
+<p align="center">
+  <video src="assets/dynamic-island-demo.mp4" width="300" autoplay loop muted playsinline></video>
+</p>
+
+```swift
+.toast(isPresented: $showToast, style: .dynamicIsland) {
+    Label("Copied to clipboard", systemImage: "doc.on.doc.fill")
+}
+```
+
+The Dynamic Island style uses a 3-second default dismiss delay (versus 6.5 seconds for regular toasts) and supports swipe-up to dismiss.
+
 ## Behavior & defaults
 
 - Toasts auto-dismiss after 6.5 seconds unless a custom `dismissDelay` is provided.
@@ -169,8 +186,8 @@ On iOS 26 the default `glassEffect` resolves to `.regular`, so the toast card 
 
 ## Public API
 
-- `View.toast(isPresented:onDismiss:dismissDelay:content:)`
-- `View.toast(item:onDismiss:dismissDelay:content:)` (`Item: Identifiable & Equatable`)
+- `View.toast(isPresented:style:onDismiss:dismissDelay:content:)`
+- `View.toast(item:style:onDismiss:dismissDelay:content:)` (`Item: Identifiable & Equatable`)
 - `View.toastBackground(alignment:content:)` and `View.toastBackground(_:)` for `ShapeStyle` backgrounds
 - `ToastController.show(dismissDelay:content:)`
 - `ToastController.show(item:dismissDelay:onDismiss:content:)`
