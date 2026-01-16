@@ -79,8 +79,10 @@ struct ToastView<Content: View>: View {
                         Color.clear
                             .id("unit")
                             .frame(height: topPadding + toastManager.contentHeight)
+                            .allowsHitTesting(false)
                             .overlay(alignment: .top) {
                                 toastContent(proxy: geometryProxy)
+                                    .contentShape(.interaction, Rectangle())
                             }
                             .onGeometryChange(for: ScrollPosition?.self) { proxy in
                                 let f = proxy.frame(in: .scrollView)
