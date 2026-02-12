@@ -7,7 +7,7 @@
 
 import SwiftUI
 import UIKit
-import UnionHaptics
+import Haptica
 
 @MainActor
 public final class ToastController: NSObject {
@@ -162,7 +162,15 @@ public extension ToastController {
     ///   - haptic: Feedback type to play just before the toast appears.
     ///   - content: View builder describing the toast.
     static func showWithHaptic<Content: View>(dismissDelay: Duration? = nil, haptic: SensoryFeedback = .success, @ViewBuilder content: @escaping () -> Content) {
-        Haptics.play(haptic)
+        if haptic == .success {
+            Haptic.notification(.success).generate()
+        } else if haptic == .error {
+            Haptic.notification(.error).generate()
+        } else if haptic == .warning {
+            Haptic.notification(.warning).generate()
+        } else {
+            Haptic.selection.generate()
+        }
         Self.show(dismissDelay: dismissDelay, content: content)
     }
 
