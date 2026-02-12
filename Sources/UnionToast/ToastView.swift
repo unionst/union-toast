@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import UnionScroll
-import UnionGestures
 
 struct ToastView<Content: View>: View {
     @Environment(ToastManager.self) private var toastManager
