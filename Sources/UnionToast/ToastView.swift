@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import UnionScroll
-import UnionGestures
 
 struct ToastView<Content: View>: View {
     @Environment(ToastManager.self) private var toastManager
@@ -176,7 +174,10 @@ struct ToastView<Content: View>: View {
                     .scrollClipDisabled()
                     .applyDragGesture(drag: simultaneousDragGesture, simultaneousDrag: dragGesture)
                     .scrollTargetBehavior(.edges)
-                    .frame(height: max(toastManager.contentHeight, 1))
+                    .frame(
+                        width: max(toastManager.contentWidth, 1),
+                        height: max(toastManager.contentHeight, 1)
+                    )
                     .onScrollGeometryChange(for: CGFloat.self) { geometry in
                         geometry.contentOffset.y
                     } action: { oldOffset, newOffset in
@@ -259,6 +260,7 @@ struct ToastView<Content: View>: View {
 
                 Spacer()
             }
+            .frame(maxWidth: .infinity)
         }
         .onChange(of: isDragging) { _, newValue in
             if newValue {
@@ -316,10 +318,11 @@ struct ToastView<Content: View>: View {
                 applyDismissalEffects(
                     to: decoratedContent(content())
                         .fixedSize()
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.height
-                        } action: { value in
-                            toastManager.contentHeight = value
+                        .onGeometryChange(for: CGSize.self) { proxy in
+                            proxy.size
+                        } action: { size in
+                            toastManager.contentHeight = size.height
+                            toastManager.contentWidth = size.width
                         },
                     progress: effectiveProgress
                 )
@@ -327,10 +330,11 @@ struct ToastView<Content: View>: View {
                 applyReplacementIncomingEffects(
                     to: decoratedContent(content())
                         .fixedSize()
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.height
-                        } action: { value in
-                            toastManager.contentHeight = value
+                        .onGeometryChange(for: CGSize.self) { proxy in
+                            proxy.size
+                        } action: { size in
+                            toastManager.contentHeight = size.height
+                            toastManager.contentWidth = size.width
                         },
                     progress: effectiveProgress
                 )
@@ -338,10 +342,11 @@ struct ToastView<Content: View>: View {
                 applyIncomingEffects(
                     to: decoratedContent(content())
                         .fixedSize()
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.height
-                        } action: { value in
-                            toastManager.contentHeight = value
+                        .onGeometryChange(for: CGSize.self) { proxy in
+                            proxy.size
+                        } action: { size in
+                            toastManager.contentHeight = size.height
+                            toastManager.contentWidth = size.width
                         },
                     progress: effectiveProgress
                 )
