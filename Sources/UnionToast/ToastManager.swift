@@ -18,6 +18,7 @@ class ToastManager {
     private(set) var isReplacing = false
     private var pendingDismissPresentationID: UUID?
     var contentHeight: CGFloat = 0
+    var contentWidth: CGFloat = 0
     private var pendingReplacementAction: (() -> Void)?
     private var pendingShowAction: (() -> Void)?
     private var isAnimatingOut = false
