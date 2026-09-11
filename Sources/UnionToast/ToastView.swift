@@ -319,7 +319,7 @@ struct ToastView<Content: View>: View {
             if isDisappearing {
                 applyDismissalEffects(
                     to: decoratedContent(content())
-                        .fixedSize()
+                        .modifier(ToastWidthCap(limit: outerProxy.size.width - 32))
                         .onGeometryChange(for: CGSize.self) { proxy in
                             proxy.size
                         } action: { value in
@@ -331,7 +331,7 @@ struct ToastView<Content: View>: View {
             } else if isReplacementIncoming {
                 applyReplacementIncomingEffects(
                     to: decoratedContent(content())
-                        .fixedSize()
+                        .modifier(ToastWidthCap(limit: outerProxy.size.width - 32))
                         .onGeometryChange(for: CGSize.self) { proxy in
                             proxy.size
                         } action: { value in
@@ -343,7 +343,7 @@ struct ToastView<Content: View>: View {
             } else {
                 applyIncomingEffects(
                     to: decoratedContent(content())
-                        .fixedSize()
+                        .modifier(ToastWidthCap(limit: outerProxy.size.width - 32))
                         .onGeometryChange(for: CGSize.self) { proxy in
                             proxy.size
                         } action: { value in
