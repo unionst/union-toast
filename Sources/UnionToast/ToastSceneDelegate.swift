@@ -97,6 +97,12 @@ class ToastSceneDelegate: NSObject {
 
         self.overlayWindow = passthroughOverlayWindow
         self.hostingController = hosting
+        manager.onWillShow = { [weak self] in
+            self?.overlayWindow?.isHidden = false
+        }
+        manager.onIdle = { [weak self] in
+            self?.overlayWindow?.isHidden = true
+        }
         syncInterfaceStyle()
         return manager
     }

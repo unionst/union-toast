@@ -25,6 +25,8 @@ class ToastManager {
 
     private let dismissDelay: Duration
     private let onDismiss: ((UUID) -> Void)?
+    var onWillShow: (() -> Void)?
+    var onIdle: (() -> Void)?
 
     init(dismissDelay: Duration = .seconds(6.5), onDismiss: ((UUID) -> Void)? = nil) {
         self.dismissDelay = dismissDelay
@@ -45,6 +47,7 @@ class ToastManager {
     }
 
     func show() {
+        onWillShow?()
         cancelReplacement()
         cancelTask()
         let newPresentationID = UUID()
@@ -131,6 +134,9 @@ class ToastManager {
 
     func notifyDismissAnimationCompleted() {
         isAnimatingOut = false
+        if !isShowing, pendingShowAction == nil, !isReplacing {
+            onIdle?()
+        }
         runPendingShowActionIfPossible()
     }
 
