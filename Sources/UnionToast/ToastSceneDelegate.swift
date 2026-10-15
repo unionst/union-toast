@@ -130,7 +130,8 @@ class ToastSceneDelegate: NSObject {
         }
 
         syncInterfaceStyle()
-        
+        revealOverlayWindow()
+
         let hosting = UIHostingController(
             rootView: ToastOverlayView(
                 manager: manager,
@@ -171,7 +172,8 @@ class ToastSceneDelegate: NSObject {
         }
 
         syncInterfaceStyle()
-        
+        revealOverlayWindow()
+
         let newRootView = ToastOverlayView(
             manager: manager,
             previousContent: previousContent,
@@ -190,6 +192,10 @@ class ToastSceneDelegate: NSObject {
 
         hostingController?.view.setNeedsLayout()
         hostingController?.view.layoutIfNeeded()
+    }
+
+    private func revealOverlayWindow() {
+        overlayWindow?.isHidden = false
     }
 
     func removeOverlay() {
